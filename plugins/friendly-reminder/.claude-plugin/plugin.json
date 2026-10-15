@@ -1,0 +1,80 @@
+{
+  "name": "friendly-reminder",
+  "displayName": "Friendly Reminder",
+  "version": "0.1.0",
+  "description": "A friendly reminder after every response of the water it took, plus energy, tokens, API cost and subscription quota, with a daily and monthly history.",
+  "author": {
+    "name": "Leon Lourenço Gomes"
+  },
+  "homepage": "https://github.com/leon-lourenco/green-ai/tree/main/plugins/friendly-reminder",
+  "repository": "https://github.com/leon-lourenco/green-ai",
+  "license": "MIT",
+  "keywords": [
+    "water",
+    "energy",
+    "sustainability",
+    "awareness",
+    "tokens",
+    "cost",
+    "quota"
+  ],
+  "userConfig": {
+    "format": {
+      "type": "string",
+      "title": "Output format",
+      "description": "short: two lines, water first. table: a turn/month table. detailed: the table plus the token breakdown and the low-high estimate range. off: show nothing, keep the history.",
+      "options": [
+        "short",
+        "table",
+        "detailed",
+        "off"
+      ],
+      "default": "short"
+    },
+    "language": {
+      "type": "string",
+      "title": "Language",
+      "description": "auto follows Claude Code's language setting, then your system locale.",
+      "options": [
+        "auto",
+        "en",
+        "pt"
+      ],
+      "default": "auto"
+    },
+    "currency": {
+      "type": "string",
+      "title": "Currency code",
+      "description": "Currency to show costs in, e.g. USD, BRL, EUR. Prices are in USD; set the exchange rate below for anything else.",
+      "default": "USD"
+    },
+    "exchange_rate": {
+      "type": "number",
+      "title": "Exchange rate",
+      "description": "Units of your currency per 1 USD (e.g. 5.4 for BRL). Leave at 1 for USD.",
+      "default": 1,
+      "min": 0
+    },
+    "footprint_profile": {
+      "type": "string",
+      "title": "Footprint estimate",
+      "description": "Which water/energy estimate to show: central (default), or the low/high end of the published range.",
+      "options": [
+        "central",
+        "low",
+        "high"
+      ],
+      "default": "central"
+    },
+    "water_scope": {
+      "type": "string",
+      "title": "Water scope",
+      "description": "full: data-center cooling plus water used to generate the electricity. onsite: cooling only (what most vendor per-prompt figures report).",
+      "options": [
+        "full",
+        "onsite"
+      ],
+      "default": "full"
+    }
+  }
+}

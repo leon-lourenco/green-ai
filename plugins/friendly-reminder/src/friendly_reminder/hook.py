@@ -1,0 +1,81 @@
+"""Stop hook entry point.
+
+Reads the hook payload on stdin and prints ``{"systemMessage": ...}`` for
+Claude Code to show under the response. Any failure is logged to the plugin
+data directory and the hook exits quietly, so it never disrupts a session.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+import traceback
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+from . import __version__, history
+from .config import BUNDLED_DATA, claude_state_file, data_dir, detect_billing, detect_language, load_settings
+from .footprint import FootprintModel
+from .meter import aggregate
+from .pricing import PriceBook
+from .quota import read_quota
+from .render import render
+from .transcript import load_when_flushed, turn_calls, turn_start_indexes
+
+FLUSH_TIMEOUT_S = 3.0
+
+
+def build_message(payload: Dict[str, Any]) -> Optional[str]:
+    transcript = payload.get("transcript_path")
+    if not transcript:
+        return None
+    path = Path(transcript)
+    settings = load_settings()  # format "off" still records history, it just shows nothing
+
+    data = data_dir()  # history and optional pricing/footprint overrides
+    prices = PriceBook.load(BUNDLED_DATA / "pricing.json", data and data / "pricing.json")
+    footprint = FootprintModel.load(BUNDLED_DATA / "footprint.json", data and data / "footprint.json")
+    billing = detect_billing()
+    language = settings.language if settings.language != "auto" else detect_language()
+
+    entries, flushed = load_when_flushed(path, payload.get("last_assistant_message"), FLUSH_TIMEOUT_S)
+    calls, prompt = turn_calls(path, entries)
+    if not calls:
+        return None
+    turn = aggregate(calls, prices, footprint, settings.footprint_profile, settings.water_scope)
+
+    today = month = None
+    if data:
+        session_id = str(payload.get("session_id") or path.stem)
+        turn_id = str((prompt or {}).get("uuid") or (prompt or {}).get("promptId") or "turn")
+        history.record(data, session_id, turn_id, turn)
+        today, month = history.summary(data)
+
+    quota = read_quota(claude_state_file(), billing.plan) if billing.is_subscription else None
+    return render(
+        turn, len(turn_start_indexes(entries)), settings, language, billing,
+        quota=quota, today=today, month=month, flushed=flushed,
+    )
+
+
+def _log_error() -> None:
+    folder = data_dir()
+    if not folder:
+        return
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        with (folder / "error.log").open("a", encoding="utf-8") as handle:
+            handle.write(f"--- {datetime.now().isoformat()} v{__version__}\n{traceback.format_exc()}\n")
+    except OSError:
+        pass
+
+
+def main() -> int:
+    try:
+        message = build_message(json.loads(sys.stdin.read() or "{}"))
+        if message:
+            sys.stdout.write(json.dumps({"systemMessage": message}, ensure_ascii=False))
+    except Exception:  # noqa: BLE001 - a hook must never break the session
+        _log_error()
+    return 0

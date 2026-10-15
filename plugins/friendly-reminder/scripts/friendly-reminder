@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+"""Stop-hook launcher: runs the bundled package without installing it."""
+
+import os
+import sys
+
+if sys.version_info < (3, 8):
+    sys.exit(0)  # too old to run; stay silent rather than break the session
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "src"))
+
+from friendly_reminder.hook import main  # noqa: E402
+
+sys.exit(main())

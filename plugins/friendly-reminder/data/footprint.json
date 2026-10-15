@@ -1,0 +1,39 @@
+{
+  "$comment": "ESTIMATES, not measurements. Anthropic does not publish per-token energy or water figures. Energy is IT energy per 1,000 tokens (Wh) before PUE. 'low' and 'high' bound a plausible range; 'central' is the value shown by default. Override locally with <plugin data dir>/footprint.json.",
+  "as_of": "2026-10-14",
+  "profiles": {
+    "low": {
+      "wh_per_1k": { "output": 0.1, "input": 0.005, "cache_write": 0.005, "cache_read": 0.0005 },
+      "pue": 1.08,
+      "wue_onsite_l_per_kwh": 0.2,
+      "ewif_offsite_l_per_kwh": 1.0
+    },
+    "central": {
+      "wh_per_1k": { "output": 0.5, "input": 0.05, "cache_write": 0.05, "cache_read": 0.005 },
+      "pue": 1.12,
+      "wue_onsite_l_per_kwh": 0.5,
+      "ewif_offsite_l_per_kwh": 3.1
+    },
+    "high": {
+      "wh_per_1k": { "output": 2.0, "input": 0.4, "cache_write": 0.4, "cache_read": 0.04 },
+      "pue": 1.2,
+      "wue_onsite_l_per_kwh": 1.8,
+      "ewif_offsite_l_per_kwh": 4.5
+    }
+  },
+  "assumptions": [
+    "Output (decode) tokens dominate inference energy; published estimates for large models span roughly 0.1-2 Wh per 1,000 output tokens.",
+    "Uncached input (prefill) and cache writes are compute-bound and much cheaper per token than decode: assumed 1/20 to 1/5 of output.",
+    "Cache reads skip recomputation of the prefix: assumed 1/10 of uncached input.",
+    "PUE (facility overhead) 1.08-1.2, typical of hyperscale data centers.",
+    "Water = energy x (on-site cooling WUE + off-site water consumed to generate the electricity). Set water_scope=onsite to count cooling only, which is what most vendor per-prompt figures report.",
+    "No per-model size scaling is applied: a Haiku token and a Fable token use the same factors."
+  ],
+  "sources": [
+    { "title": "Epoch AI estimate cited in 'Photons = Tokens' (arXiv 2603.06630): ~0.0001-0.002 Wh per output token", "url": "https://arxiv.org/pdf/2603.06630" },
+    { "title": "A Systematic Characterization of LLM Inference on GPUs (arXiv 2512.01644): decode dominates energy, ~1.7 J per generated token", "url": "https://arxiv.org/pdf/2512.01644" },
+    { "title": "From Words to Watts (arXiv 2310.03003): LLaMA-65B ~3-4 J per output token", "url": "https://arxiv.org/pdf/2310.03003" },
+    { "title": "How Hungry is AI? Energy, water and carbon of LLM inference (arXiv 2505.09598)", "url": "https://arxiv.org/abs/2505.09598" },
+    { "title": "Making AI Less 'Thirsty' (Li et al., arXiv 2304.03271): on-site WUE plus off-site electricity water intensity", "url": "https://arxiv.org/abs/2304.03271" }
+  ]
+}

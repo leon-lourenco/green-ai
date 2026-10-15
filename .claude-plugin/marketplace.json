@@ -1,0 +1,23 @@
+{
+  "name": "green-ai",
+  "description": "Claude Code plugins that make the environmental cost of AI visible.",
+  "owner": {
+    "name": "Leon Lourenço Gomes",
+    "url": "https://github.com/leon-lourenco"
+  },
+  "plugins": [
+    {
+      "name": "friendly-reminder",
+      "source": "./plugins/friendly-reminder",
+      "description": "After every response, a friendly reminder of the water it took, plus energy, tokens, API cost and quota.",
+      "category": "sustainability",
+      "tags": [
+        "water",
+        "energy",
+        "awareness",
+        "tokens",
+        "cost"
+      ]
+    }
+  ]
+}

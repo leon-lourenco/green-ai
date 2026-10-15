@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0 - 2026-10-15
+
+First stable release.
+
+- **Options** button on the band. It opens pickers for format, language, comparison, estimate (central/low/high) and water scope. A pick saves to `/config` and redraws the last response's reminder right away. Currency and exchange rate stay in `/config`.
+- New `comparison` option: **progressive** (default) grows with your use; **random** pictures each response as something different. The fixed 250 mL glass is gone.
+- English is now the default language. `auto` still follows Claude Code's language setting, then the system locale.
+
 ## 0.2.0 - 2026-10-15
 
 - The reminder is now a band above the prompt, drawn by a mod (`hooks/register.tsx`), instead of a `Stop` hook `systemMessage`. No more `Stop says:` before every line. The band hides while Claude works, and **Hide** dismisses it for the session.

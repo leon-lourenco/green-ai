@@ -51,17 +51,17 @@ def build_message(payload: Dict[str, Any]) -> Optional[str]:
         return None
     turn = aggregate(calls, prices, footprint, settings.footprint_profile, settings.water_scope)
 
+    session_id = str(payload.get("session_id") or path.stem)
+    turn_id = str((prompt or {}).get("uuid") or (prompt or {}).get("promptId") or "turn")
     today = month = None
     if data:
-        session_id = str(payload.get("session_id") or path.stem)
-        turn_id = str((prompt or {}).get("uuid") or (prompt or {}).get("promptId") or "turn")
         history.record(data, session_id, turn_id, turn)
         today, month = history.summary(data)
 
     quota = read_quota(claude_state_file(), billing.plan) if billing.is_subscription else None
     return render(
         turn, len(turn_start_indexes(entries)), settings, language, billing,
-        quota=quota, today=today, month=month, flushed=flushed,
+        quota=quota, today=today, month=month, flushed=flushed, seed=f"{session_id}:{turn_id}",
     )
 
 

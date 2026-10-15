@@ -3,19 +3,17 @@
 Every answer from an AI model costs water: the water that cools the data center, plus the water used to generate its electricity. Friendly Reminder is a Claude Code plugin that makes that cost visible. After each response, it shows two lines in a band above the prompt:
 
 ```
-💧 113 mL of water in this response (45% of a glass) · today 1.4 L · month 19 L
-⚡ 31 Wh · 2.1M tokens · $1.35
+💧 56 mL of water in this response (29% of a small glass) · today 1.4 L · month 19 L (≈ 1.9 buckets)
+⚡ 15 Wh · 1.3M tokens · $0.82
 ```
 
-Water and energy are estimates, so the short format rounds them. Prefer a table? Set `format` to `table`, or to `detailed` to also see the token breakdown and the low–high estimate range.
-
-- **Water** leads the message. It is an estimate built from published research, compared with a 250 mL glass, and totaled for the day and the month.
+- **Water** leads the message. It is an estimate built from published research, pictured as something everyday (see [Comparisons](#comparisons)), and totaled for the day and the month.
 - **Energy** is estimated the same way.
 - **Tokens** are exact: the API's own counts for every request in the turn, subagents included.
 - **API cost** is exact at Anthropic's list prices, with cache writes and reads priced separately. On a subscription, this is the API-equivalent value of the work, not what you pay.
 - **Quota**: on Pro, Max and Team, your 5-hour and weekly usage. The short format shows it once either reaches 50%.
 
-It configures itself (billing mode, plan, language) and needs only `python3` 3.8+. No dependencies. The band hides while Claude is working and comes back when the response ends; **Hide** dismisses it for the session.
+It speaks English by default, with Portuguese one click away. It detects your billing mode and plan by itself. It needs only `python3` 3.8+ and has no dependencies.
 
 ## Install
 
@@ -26,22 +24,84 @@ It configures itself (billing mode, plan, language) and needs only `python3` 3.8
 
 The reminder appears after your next response. On Windows, make sure `python3` is on `PATH`.
 
+To update later, run `/plugin marketplace update green-ai`, then `/reload-plugins` (or start a new session).
+
+## The band
+
+The band appears when a response ends and hides while Claude is working. It has two buttons:
+
+- **Options** opens pickers for format, language, comparison, estimate and water scope. A pick is saved to `/config` and the reminder of the last response redraws at once, so you see the change without waiting for the next one. **Done** closes the pickers.
+- **Hide** dismisses the band for the rest of the session. The history keeps recording.
+
+Click a button, or press `ctrl+x tab` to focus the band from the keyboard: Enter acts, the arrow keys move through a picker's choices, and Esc returns to the prompt.
+
+## Formats
+
+**short** (default) is the two lines above.
+
+**table** adds a title, a plain sentence, the day and month comparisons, and a turn/month table:
+
+```
+💧 Friendly Reminder · turn 7 · opus-5-5
+This response used ≈ 55.6 mL of water, 29% of a small glass.
+Today: ≈ 1.40 L (≈ 7.4 small glasses) · Month: ≈ 19.0 L (≈ 1.9 buckets)
+┌──────────┬───────────┬────────────┐
+│          │      Turn │      Month │
+├──────────┼───────────┼────────────┤
+│ Water    │ ≈ 55.6 mL │   ≈ 19.0 L │
+│ Energy   │ ≈ 15.4 Wh │ ≈ 5.20 kWh │
+│ Tokens   │ 1,291,395 │      40.9M │
+│ API cost │    $0.818 │     $52.40 │
+└──────────┴───────────┴────────────┘
+Max quota: 5h 34% · week 58%
+```
+
+**detailed** is the table plus the token breakdown (input, cache writes, cache reads, output) and the low–high range of the water and energy estimates:
+
+```
+Water: 3.40 mL – 410 mL
+Energy: 2.10 Wh – 64.0 Wh
+≈ = estimate (central profile; water counts data-center cooling + power generation).
+```
+
+**off** shows nothing but keeps recording the history, so the totals are right when you turn it back on.
+
+## Comparisons
+
+Milliliters are hard to picture, so each amount is compared with something familiar. Two modes:
+
+- **progressive** (default) grows with your use. The short format shows it on the month, where the total keeps climbing. How far it goes is for you to find out.
+- **random** pictures each response as something different, and usually something fun:
+
+  ```
+  💧 56 mL of water in this response (22% of a cactus watering) · today 1.4 L · month 19 L
+  ```
+
+  The pick is fixed for each response, so redrawing the band from **Options** doesn't change it.
+
+The comparisons live in [`comparisons.py`](src/friendly_reminder/comparisons.py). Ideas are welcome.
+
 ## Configure
 
-Open `/config` and edit the **Friendly Reminder** rows, or run `claude plugin configure friendly-reminder@green-ai` from your shell.
+Use **Options** on the band, or open `/config` and edit the **Friendly Reminder** rows. You can also run `claude plugin configure friendly-reminder@green-ai` from your shell. Currency and exchange rate are only in `/config`.
 
 | Option | Values | Default |
 |---|---|---|
-| `format` | `short` (two lines); `table` (turn/month table); `detailed` (table plus token breakdown and the low–high range); `off` (show nothing, keep history) | `short` |
-| `language` | `auto`, `en`, `pt` | `auto` |
-| `currency` + `exchange_rate` | any code, units per 1 USD | `USD`, `1` |
-| `footprint_profile` | `central`, `low`, `high` | `central` |
+| `format` | `short`, `table`, `detailed`, `off` (see [Formats](#formats)) | `short` |
+| `language` | `en`, `pt`, `auto` (Claude Code's language setting, then the system locale) | `en` |
+| `comparison` | `progressive` (grows with your use), `random` (something different every response) | `progressive` |
+| `currency` + `exchange_rate` | any currency code, and units of it per 1 USD (e.g. `BRL`, `5.4`) | `USD`, `1` |
+| `footprint_profile` | `central`, `low`, `high`: which end of the published range to show | `central` |
 | `water_scope` | `full` (cooling + power generation), `onsite` (cooling only) | `full` |
 
-Optional overrides go in the plugin data directory, `~/.claude/plugins/data/friendly-reminder-green-ai/`:
+### Data and overrides
 
-- `pricing.json` adds or replaces model prices, using the same shape as [`data/pricing.json`](data/pricing.json).
-- `footprint.json` replaces water and energy factors.
+Everything the plugin keeps is in its data directory, `~/.claude/plugins/data/friendly-reminder-green-ai/`:
+
+- `history/YYYY-MM.jsonl` holds one line per response: tokens, cost, energy, water and models. The day and month totals come from here. Delete a file to reset that month.
+- `error.log` collects any error, so a failure never interrupts your session.
+- `pricing.json` (optional) adds or replaces model prices, using the same shape as [`data/pricing.json`](data/pricing.json).
+- `footprint.json` (optional) replaces water and energy factors, using the same shape as [`data/footprint.json`](data/footprint.json).
 
 ## How the water is estimated
 
@@ -73,15 +133,21 @@ Sources and assumptions are listed in [`data/footprint.json`](data/footprint.jso
 
 Friendly Reminder is a mod: a plugin whose hooks module (`hooks/register.tsx`) draws in Claude Code's interface. When Claude finishes a response:
 
-1. The module runs `scripts/friendly-reminder`, passing it the turn's `Stop` payload and your `/config` options.
+1. The module runs `scripts/friendly-reminder`, passing it the turn's `Stop` payload and your settings.
 2. The script reads the session transcript and the subagent transcripts beside it.
 3. It sums the `usage` of every API call since the turn's opening prompt, prices it, and estimates energy and water.
-4. It appends the turn to `history/YYYY-MM.jsonl` in the plugin data directory, from which it computes the day and month totals.
+4. It records the turn in the history, keyed by session and turn, so measuring the same turn twice never counts it twice. The day and month totals come from the history.
 5. The module draws the result above the prompt.
 
-A band replaces the `systemMessage` of earlier versions, which Claude Code prefixed with `Stop says:` on every line.
+A pick in **Options** writes the `/config` row, then runs step 1 again for the last response with the new setting.
 
-The plugin never reads credentials. Billing detection looks only at provider switches, at whether an API key is present, and at the plan type in `~/.claude.json`. Errors go to `error.log` in the data directory, and the session continues normally.
+The plugin never reads credentials. Billing detection looks only at provider switches, at whether an API key is present, and at the plan type in `~/.claude.json`.
+
+## Troubleshooting
+
+- **No band after a response.** Check that the plugin is enabled (`/plugin`) and that `python3` runs from your shell. If you pressed **Hide**, the band stays hidden until the next session. If you updated the plugin with `/reload-plugins` and the band stopped, start a new session (`claude --continue` keeps the conversation).
+- **Numbers look off.** Look at `error.log` in the data directory. Prices are a snapshot, so a new model may be missing from `data/pricing.json` (the cost then shows a `*`).
+- **Wrong language.** The default is English. Pick `pt` or `auto` in **Options**.
 
 ## Limits
 
@@ -91,6 +157,7 @@ The plugin never reads credentials. Billing detection looks only at provider swi
 - A turn interrupted with Esc doesn't fire `Stop`, so it is missing from the history.
 - Mods are an early-access Claude Code feature, and their API may change between releases.
 - Where an organization manages Claude Code, it runs `Stop` hooks only for plugins listed in managed settings, so the band stays empty.
+- The Claude mobile app shows the band without **Options**, since it can't draw pickers yet.
 
 ## Development
 

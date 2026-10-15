@@ -22,17 +22,19 @@ CHOICES = {
     "language": ("auto", "en", "pt"),
     "footprint_profile": ("central", "low", "high"),
     "water_scope": ("full", "onsite"),
+    "comparison": ("progressive", "random"),
 }
 
 
 @dataclass
 class Settings:
     format: str = "short"
-    language: str = "auto"
+    language: str = "en"
     currency: str = "USD"
     exchange_rate: float = 1.0
     footprint_profile: str = "central"
     water_scope: str = "full"
+    comparison: str = "progressive"
 
 
 def load_settings(env: Optional[Dict[str, str]] = None) -> Settings:

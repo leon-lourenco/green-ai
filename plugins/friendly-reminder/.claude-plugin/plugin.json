@@ -1,7 +1,7 @@
 {
   "name": "friendly-reminder",
   "displayName": "Friendly Reminder",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "A friendly reminder after every response of the water it took, plus energy, tokens, API cost and subscription quota, with a daily and monthly history.",
   "author": {
     "name": "Leon Lourenço Gomes"
@@ -35,13 +35,23 @@
     "language": {
       "type": "string",
       "title": "Language",
-      "description": "auto follows Claude Code's language setting, then your system locale.",
+      "description": "Defaults to English. auto follows Claude Code's language setting, then your system locale.",
       "options": [
         "auto",
         "en",
         "pt"
       ],
-      "default": "auto"
+      "default": "en"
+    },
+    "comparison": {
+      "type": "string",
+      "title": "Comparison",
+      "description": "How the water is pictured. progressive: grows with your use. random: something different every response.",
+      "options": [
+        "progressive",
+        "random"
+      ],
+      "default": "progressive"
     },
     "currency": {
       "type": "string",

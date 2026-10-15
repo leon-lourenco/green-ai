@@ -88,3 +88,47 @@ test('settings from /config reach the Python side', { options: { format: 'table'
   expect((await ui.find({ key: 'hide' }))?.props.label).toBe('Hide')
   await ui.unmount()
 })
+
+test('Options changes a setting from the band and measures the response again', { options: { format: 'short', language: 'pt' } }, async ($, on) => {
+  engine(on)
+  const runs: Record<string, string>[] = []
+  on('process.run', (_$, e) => {
+    const env = { ...(e.init?.env ?? {}) }
+    runs.push(env)
+    const text = env.CLAUDE_PLUGIN_OPTION_FORMAT === 'table' ? 'tabela de água' : LINES.join('\n')
+    return {
+      value: {
+        exitCode: 0,
+        stdout: JSON.stringify({ systemMessage: text, language: 'pt' }),
+        stderr: '',
+        isStdoutTruncated: false,
+        isStderrTruncated: false,
+      },
+    }
+  })
+  const sets: { key: string; value: unknown }[] = []
+  on('config.list', () => ({ value: [
+    { key: 'friendly-reminder.format', label: 'Output format', kind: 'choice', value: 'short', options: ['short', 'table', 'detailed', 'off'], provider: { plugin: 'friendly-reminder' }, isLocked: false },
+  ] }) as never)
+  on('config.set', (_$, e) => {
+    sets.push({ key: e.key, value: e.value })
+    return { value: e.value }
+  })
+
+  await $.classic.Stop({ stop_hook_active: false, last_assistant_message: 'oi' } as never)
+
+  const ui = await $.ui.mount({ plugin: 'friendly-reminder', surface: 'terminal', component: 'AbovePrompt', props: props() })
+  expect((await ui.find({ key: 'options' }))?.props.label).toBe('Opções')
+  expect(await ui.find({ key: 'option-format' })).toBeUndefined()
+  await ui.press({ key: 'options' })
+  expect((await ui.find({ key: 'option-format' }))?.props.value).toBe('short')
+
+  await ui.select({ key: 'option-format', value: 'table' })
+  expect(sets).toEqual([{ key: 'friendly-reminder.format', value: 'table' }])
+  expect(runs.at(-1)?.CLAUDE_PLUGIN_OPTION_FORMAT).toBe('table')
+  expect((await ui.find({ type: 'Text', text: /tabela/ }))?.text).toBe('tabela de água')
+
+  await ui.press({ key: 'options' })
+  expect(await ui.find({ key: 'option-format' })).toBeUndefined()
+  await ui.unmount()
+})

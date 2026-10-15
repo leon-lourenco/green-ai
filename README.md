@@ -9,7 +9,7 @@ A Claude Code plugin marketplace of tools that make the environmental cost of AI
 
 | Plugin | What it does |
 |---|---|
-| [friendly-reminder](plugins/friendly-reminder) | After every response, a reminder of the water it took (plus energy, tokens, API cost and quota), with a daily and monthly history |
+| [friendly-reminder](plugins/friendly-reminder) | After every response, a band above the prompt shows the water it took, pictured as something everyday, plus energy, tokens, API cost and quota, with daily and monthly totals. Settings are one click away in the band. |
 
 ## Layout
 

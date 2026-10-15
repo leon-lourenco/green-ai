@@ -139,25 +139,40 @@ class RenderTests(unittest.TestCase):
         lines = self.text().splitlines()
         self.assertTrue(lines[0].startswith("💧 Friendly Reminder · turno 2"))
         self.assertTrue(lines[1].startswith("Esta resposta consumiu ≈ "))
-        self.assertIn("de um copo", lines[1])
+        self.assertIn("de um copo americano", lines[1])
         first_row = next(line for line in lines if line.startswith("│ ") and "Turno" not in line)
         self.assertIn("Água", first_row)
 
     def test_history_line_and_month_column(self) -> None:
         text = self.text(today=self.month, month=self.month)
-        self.assertIn("Hoje: ≈ 2,30 L (≈ 9,2 copos) · Mês: ≈ 2,30 L (≈ 9,2 copos)", text)
+        self.assertIn("Hoje: ≈ 2,30 L (≈ 1,1 garrafas de 2 L) · Mês: ≈ 2,30 L (≈ 1,1 garrafas de 2 L)", text)
         self.assertIn("Mês", text.splitlines()[4])
         self.assertIn("US$ 12,30", text)
 
     def test_without_history_there_is_no_month_column(self) -> None:
         self.assertNotIn("Mês", self.text())
 
-    def test_glass_wording(self) -> None:
+    def test_progressive_comparison_climbs_the_ladder(self) -> None:
         f = Formatter(Settings(), "en")
-        self.assertEqual(f.glasses(1), "under 1% of a glass")
-        self.assertEqual(f.glasses(50), "20% of a glass")
-        self.assertEqual(f.glasses(260), "≈ 1 glass")
-        self.assertEqual(f.glasses(5000), "≈ 20 glasses")
+        self.assertEqual(Settings().comparison, "progressive")
+        self.assertEqual(f.compare(1), "under 1% of a small glass")
+        self.assertEqual(f.compare(57), "30% of a small glass")
+        self.assertEqual(f.compare(190), "≈ 1 small glass")
+        self.assertEqual(f.compare(1400), "≈ 7.4 small glasses")
+        self.assertEqual(f.compare(18_000), "≈ 1.8 buckets")
+        self.assertEqual(f.compare(3_000_000), "≈ 3 1,000 L water tanks")
+        self.assertEqual(f.compare(5e9), "≈ 2 Olympic pools")
+        self.assertEqual(f.compare(9e11), "≈ 10 minutes of Iguaçu Falls")
+        self.assertEqual(Formatter(Settings(), "pt").compare(150_000), "≈ 1 banheira cheia")
+
+    def test_random_comparison_is_fun_and_stable_per_turn(self) -> None:
+        f = Formatter(Settings(comparison="random"), "pt")
+        picks = {f.compare(55, f"session:{i}") for i in range(80)}
+        self.assertGreater(len(picks), 4)
+        self.assertIn("18% de um coco verde", picks)
+        self.assertEqual(f.compare(55, "session:turn"), f.compare(55, "session:turn"))
+        # Nothing fun fits a huge amount, so it falls back to the ladder.
+        self.assertEqual(f.compare(5e9, "x"), "≈ 2 piscinas olímpicas")
 
     def test_currency_conversion(self) -> None:
         self.assertIn("R$ 0,0298", self.text(Settings(format="table", currency="BRL", exchange_rate=5.0)))
@@ -170,7 +185,7 @@ class RenderTests(unittest.TestCase):
         first, second = text.splitlines()  # no "partial" warning line
         self.assertTrue(first.startswith("💧 "))
         self.assertIn("de água nesta resposta", first)
-        self.assertIn("mês 2,3 L", first)
+        self.assertIn("mês 2,3 L (≈ 1,1 garrafas de 2 L)", first)
         self.assertTrue(second.startswith("⚡ "))
         self.assertIn("4,5 mil tokens", second)
         self.assertNotIn("cota", second)  # quota stays hidden below 50%
@@ -197,7 +212,7 @@ class RenderTests(unittest.TestCase):
         text = self.text(Settings(format="detailed"))
         self.assertIn("Cache (leitura)", text)
         self.assertIn("Água: ", text)
-        self.assertIn("Copo = 250 mL", text)
+        self.assertNotIn("250 mL", text)
 
     def test_off_renders_nothing(self) -> None:
         self.assertIsNone(self.text(Settings(format="off")))
@@ -215,6 +230,12 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual((s.format, s.currency), ("detailed", "BRL"))
         s = load_settings({"CLAUDE_PLUGIN_OPTION_FORMAT": "fancy", "CLAUDE_PLUGIN_OPTION_EXCHANGE_RATE": "x"})
         self.assertEqual((s.format, s.exchange_rate), ("short", 1.0))
+
+    def test_english_and_progressive_by_default(self) -> None:
+        s = load_settings({})
+        self.assertEqual((s.language, s.comparison), ("en", "progressive"))
+        s = load_settings({"CLAUDE_PLUGIN_OPTION_COMPARISON": "random", "CLAUDE_PLUGIN_OPTION_LANGUAGE": "pt"})
+        self.assertEqual((s.language, s.comparison), ("pt", "random"))
 
     def test_billing_detection_never_needs_credentials(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

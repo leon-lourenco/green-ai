@@ -2,7 +2,7 @@
 
 Water comes first on purpose: the plugin exists to make the water cost of
 each response visible, so it leads the message, gets a plain-language
-comparison (a 250 mL glass), and heads the table.
+comparison (see ``comparisons``), and heads the table.
 """
 
 from __future__ import annotations
@@ -10,11 +10,11 @@ from __future__ import annotations
 import time
 from typing import Dict, List, Optional, Sequence
 
+from . import comparisons
 from .config import Billing, Settings
 from .models import Quota, Totals
 
 TITLE = "Friendly Reminder"
-GLASS_ML = 250.0
 QUOTA_SHOW_PCT = 50  # the short format mentions quota only once it starts to matter
 
 STRINGS: Dict[str, Dict[str, str]] = {
@@ -22,14 +22,11 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "turn_n": "turn {n}",
         "headline": "This response used ≈ {water} of water, {glass}.",
         "short_water": "{water} of water in this response ({glass})",
+        "short_month": "month {water} ({glass})",
         "short_quota": "{plan} quota: 5h {five}, week {week}",
         "short_tokens": "{n} tokens",
         "under": "under {amount}",
-        "glass_share": "{pct} of a glass",
-        "glass_tiny": "under 1% of a glass",
-        "glasses": "≈ {n} glasses",
-        "glass_one": "≈ 1 glass",
-        "history": "Today: ≈ {day} ({day_glasses}) · Month: ≈ {month} ({month_glasses})",
+        "history": "Today: ≈ {day} ({day_like}) · Month: ≈ {month} ({month_like})",
         "turn": "Turn",
         "today": "Today",
         "month": "Month",
@@ -44,7 +41,7 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "cache_read": "Cache read",
         "output": "Output",
         "range": "{label}: {low} – {high}",
-        "estimate": "≈ = estimate ({profile} profile; water counts {scope}). Glass = 250 mL.",
+        "estimate": "≈ = estimate ({profile} profile; water counts {scope}).",
         "scope_full": "data-center cooling + power generation",
         "scope_onsite": "data-center cooling only",
         "unpriced": "no price for: {models}",
@@ -55,14 +52,11 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "turn_n": "turno {n}",
         "headline": "Esta resposta consumiu ≈ {water} de água, {glass}.",
         "short_water": "{water} de água nesta resposta ({glass})",
+        "short_month": "mês {water} ({glass})",
         "short_quota": "cota {plan}: 5h {five}, semana {week}",
         "short_tokens": "{n} tokens",
         "under": "menos de {amount}",
-        "glass_share": "{pct} de um copo",
-        "glass_tiny": "menos de 1% de um copo",
-        "glasses": "≈ {n} copos",
-        "glass_one": "≈ 1 copo",
-        "history": "Hoje: ≈ {day} ({day_glasses}) · Mês: ≈ {month} ({month_glasses})",
+        "history": "Hoje: ≈ {day} ({day_like}) · Mês: ≈ {month} ({month_like})",
         "turn": "Turno",
         "today": "Hoje",
         "month": "Mês",
@@ -77,7 +71,7 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "cache_read": "Cache (leitura)",
         "output": "Saída",
         "range": "{label}: {low} – {high}",
-        "estimate": "≈ = estimativa (perfil {profile}; a água inclui {scope}). Copo = 250 mL.",
+        "estimate": "≈ = estimativa (perfil {profile}; a água inclui {scope}).",
         "scope_full": "resfriamento do data center + geração de energia",
         "scope_onsite": "só o resfriamento do data center",
         "unpriced": "sem preço para: {models}",
@@ -165,15 +159,9 @@ class Formatter:
     def water(self, ml: float) -> str:
         return self._sig(ml / 1000) + " L" if ml >= 1000 else self._sig(ml) + " mL"
 
-    def glasses(self, ml: float) -> str:
-        """Water as a share of, or a count of, 250 mL glasses."""
-        if ml < GLASS_ML:
-            pct = 100 * ml / GLASS_ML
-            return self.t["glass_tiny"] if pct < 1 else self.t["glass_share"].format(pct=self.number(pct) + "%")
-        count = ml / GLASS_ML
-        if round(count, 1) < 1.5:
-            return self.t["glass_one"]
-        return self.t["glasses"].format(n=self.number(count, 1 if count < 10 else 0))
+    def compare(self, ml: float, seed: str = "") -> str:
+        """Water as something everyday, per the ``comparison`` setting."""
+        return comparisons.compare(ml, self.s.comparison, self.lang, seed, self.number)
 
     @staticmethod
     def age(fetched_at_ms: int) -> str:
@@ -220,6 +208,7 @@ def render(
     today: Optional[Totals] = None,
     month: Optional[Totals] = None,
     flushed: bool = True,
+    seed: str = "",
 ) -> Optional[str]:
     if settings.format == "off":
         return None
@@ -231,13 +220,13 @@ def render(
         [TITLE, t["turn_n"].format(n=turn_number), ", ".join(m.replace("claude-", "") for m in models) or "-"]
     )
     water_ml = turn.footprint.water_ml
-    headline = t["headline"].format(water=f.water(water_ml), glass=f.glasses(water_ml))
+    headline = t["headline"].format(water=f.water(water_ml), glass=f.compare(water_ml, seed))
     history = (
         t["history"].format(
             day=f.water(today.footprint.water_ml),
-            day_glasses=f.glasses(today.footprint.water_ml),
+            day_like=f.compare(today.footprint.water_ml, seed + ":day"),
             month=f.water(month.footprint.water_ml),
-            month_glasses=f.glasses(month.footprint.water_ml),
+            month_like=f.compare(month.footprint.water_ml, seed + ":month"),
         )
         if today is not None and month is not None
         else None
@@ -245,12 +234,16 @@ def render(
     quota_line = _quota_line(f, quota, billing)
 
     if settings.format == "short":
-        first = ["💧 " + t["short_water"].format(water=f.compact_water(water_ml), glass=f.glasses(water_ml))]
+        first = ["💧 " + t["short_water"].format(water=f.compact_water(water_ml), glass=f.compare(water_ml, seed))]
         if today is not None and month is not None:
-            first += [
-                f"{t['today'].lower()} {f.compact_water(today.footprint.water_ml)}",
-                f"{t['month'].lower()} {f.compact_water(month.footprint.water_ml)}",
-            ]
+            month_ml = month.footprint.water_ml
+            # The progressive ladder is about the running total, so it shows on the month.
+            month_text = (
+                t["short_month"].format(water=f.compact_water(month_ml), glass=f.compare(month_ml))
+                if settings.comparison == "progressive"
+                else f"{t['month'].lower()} {f.compact_water(month_ml)}"
+            )
+            first += [f"{t['today'].lower()} {f.compact_water(today.footprint.water_ml)}", month_text]
         second = [
             "⚡ " + f.compact_energy(turn.footprint.wh),
             t["short_tokens"].format(n=f.compact_tokens(turn.usage.total)),

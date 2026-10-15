@@ -1,17 +1,4 @@
 {
-  "description": "After each response, show the estimated water (and energy, tokens, cost) behind it.",
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/friendly-reminder"],
-            "timeout": 15
-          }
-        ]
-      }
-    ]
-  }
+  "description": "After each response, show the estimated water (and energy, tokens, cost) behind it in a band above the prompt.",
+  "modules": ["./register.tsx"]
 }

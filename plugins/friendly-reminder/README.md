@@ -1,21 +1,21 @@
 # Friendly Reminder 💧
 
-Every answer from an AI model costs water: the water that cools the data center, plus the water used to generate its electricity. Friendly Reminder is a Claude Code plugin that makes that cost visible. After each response, it adds two lines:
+Every answer from an AI model costs water: the water that cools the data center, plus the water used to generate its electricity. Friendly Reminder is a Claude Code plugin that makes that cost visible. After each response, it shows two lines in a band above the prompt:
 
 ```
-💧 ≈ 113 mL of water in this response (45% of a glass) · today ≈ 1.42 L · month ≈ 18.6 L
-⚡ ≈ 31.4 Wh · 2,064,412 tokens · $1.35 · Pro quota: 5h 38%, week 21%
+💧 113 mL of water in this response (45% of a glass) · today 1.4 L · month 19 L
+⚡ 31 Wh · 2.1M tokens · $1.35
 ```
 
-Prefer a table? Set `format` to `table`, or to `detailed` to also see the token breakdown and the low–high estimate range.
+Water and energy are estimates, so the short format rounds them. Prefer a table? Set `format` to `table`, or to `detailed` to also see the token breakdown and the low–high estimate range.
 
-- **Water** leads the message. It is an estimate (marked `≈`) built from published research, compared with a 250 mL glass, and totaled for the day and the month.
+- **Water** leads the message. It is an estimate built from published research, compared with a 250 mL glass, and totaled for the day and the month.
 - **Energy** is estimated the same way.
 - **Tokens** are exact: the API's own counts for every request in the turn, subagents included.
 - **API cost** is exact at Anthropic's list prices, with cache writes and reads priced separately. On a subscription, this is the API-equivalent value of the work, not what you pay.
-- **Quota**: on Pro, Max and Team, your 5-hour and weekly usage.
+- **Quota**: on Pro, Max and Team, your 5-hour and weekly usage. The short format shows it once either reaches 50%.
 
-It configures itself (billing mode, plan, language) and needs only `python3` 3.8+. No dependencies.
+It configures itself (billing mode, plan, language) and needs only `python3` 3.8+. No dependencies. The band hides while Claude is working and comes back when the response ends; **Hide** dismisses it for the session.
 
 ## Install
 
@@ -71,12 +71,15 @@ Sources and assumptions are listed in [`data/footprint.json`](data/footprint.jso
 
 ## How it works
 
-A `Stop` hook runs `scripts/friendly-reminder` when Claude finishes a response:
+Friendly Reminder is a mod: a plugin whose hooks module (`hooks/register.tsx`) draws in Claude Code's interface. When Claude finishes a response:
 
-1. It reads the session transcript and the subagent transcripts beside it.
-2. It sums the `usage` of every API call since the turn's opening prompt, prices it, and estimates energy and water.
-3. It appends the turn to `history/YYYY-MM.jsonl` in the plugin data directory, from which it computes the day and month totals.
-4. It returns the message as a `systemMessage`.
+1. The module runs `scripts/friendly-reminder`, passing it the turn's `Stop` payload and your `/config` options.
+2. The script reads the session transcript and the subagent transcripts beside it.
+3. It sums the `usage` of every API call since the turn's opening prompt, prices it, and estimates energy and water.
+4. It appends the turn to `history/YYYY-MM.jsonl` in the plugin data directory, from which it computes the day and month totals.
+5. The module draws the result above the prompt.
+
+A band replaces the `systemMessage` of earlier versions, which Claude Code prefixed with `Stop says:` on every line.
 
 The plugin never reads credentials. Billing detection looks only at provider switches, at whether an API key is present, and at the plan type in `~/.claude.json`. Errors go to `error.log` in the data directory, and the session continues normally.
 
@@ -86,12 +89,14 @@ The plugin never reads credentials. Billing detection looks only at provider swi
 - Prices are a snapshot (`as_of` in `data/pricing.json`). Bedrock and Vertex use partner pricing, which can differ.
 - Quota comes from an undocumented cache in `~/.claude.json`, so it is only as fresh as Claude Code's last fetch. Subscriptions have 5-hour and weekly limits, not a monthly allowance.
 - A turn interrupted with Esc doesn't fire `Stop`, so it is missing from the history.
-- Claude Code prefixes each line of a hook message with `Stop says:`.
+- Mods are an early-access Claude Code feature, and their API may change between releases.
+- Where an organization manages Claude Code, it runs `Stop` hooks only for plugins listed in managed settings, so the band stays empty.
 
 ## Development
 
 ```bash
-python3 -m unittest discover -s tests     # no dependencies
+python3 -m unittest discover -s tests     # Python: no dependencies
+claude plugin test .                       # the mod: tests/*.test.tsx
 claude plugin validate .
 claude --plugin-dir .                      # try it without installing
 ```

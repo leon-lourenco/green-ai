@@ -1,7 +1,7 @@
 {
   "name": "friendly-reminder",
   "displayName": "Friendly Reminder",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A friendly reminder after every response of the water it took, plus energy, tokens, API cost and subscription quota, with a daily and monthly history.",
   "author": {
     "name": "Leon Lourenço Gomes"
@@ -9,6 +9,7 @@
   "homepage": "https://github.com/leon-lourenco/green-ai/tree/main/plugins/friendly-reminder",
   "repository": "https://github.com/leon-lourenco/green-ai",
   "license": "MIT",
+  "types": "./types/index.d.ts",
   "keywords": [
     "water",
     "energy",

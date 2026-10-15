@@ -1,8 +1,9 @@
-"""Stop hook entry point.
+"""Entry point the mod runs after each response.
 
-Reads the hook payload on stdin and prints ``{"systemMessage": ...}`` for
-Claude Code to show under the response. Any failure is logged to the plugin
-data directory and the hook exits quietly, so it never disrupts a session.
+Reads the Stop hook payload on stdin and prints
+``{"systemMessage": ..., "language": ...}``; the mod (``hooks/register.tsx``)
+draws the message above the prompt. Any failure is logged to the plugin data
+directory and the script exits quietly, so it never disrupts a session.
 """
 
 from __future__ import annotations
@@ -26,6 +27,11 @@ from .transcript import load_when_flushed, turn_calls, turn_start_indexes
 FLUSH_TIMEOUT_S = 3.0
 
 
+def resolved_language() -> str:
+    settings = load_settings()
+    return settings.language if settings.language != "auto" else detect_language()
+
+
 def build_message(payload: Dict[str, Any]) -> Optional[str]:
     transcript = payload.get("transcript_path")
     if not transcript:
@@ -37,7 +43,7 @@ def build_message(payload: Dict[str, Any]) -> Optional[str]:
     prices = PriceBook.load(BUNDLED_DATA / "pricing.json", data and data / "pricing.json")
     footprint = FootprintModel.load(BUNDLED_DATA / "footprint.json", data and data / "footprint.json")
     billing = detect_billing()
-    language = settings.language if settings.language != "auto" else detect_language()
+    language = resolved_language()
 
     entries, flushed = load_when_flushed(path, payload.get("last_assistant_message"), FLUSH_TIMEOUT_S)
     calls, prompt = turn_calls(path, entries)
@@ -75,7 +81,7 @@ def main() -> int:
     try:
         message = build_message(json.loads(sys.stdin.read() or "{}"))
         if message:
-            sys.stdout.write(json.dumps({"systemMessage": message}, ensure_ascii=False))
+            sys.stdout.write(json.dumps({"systemMessage": message, "language": resolved_language()}, ensure_ascii=False))
     except Exception:  # noqa: BLE001 - a hook must never break the session
         _log_error()
     return 0

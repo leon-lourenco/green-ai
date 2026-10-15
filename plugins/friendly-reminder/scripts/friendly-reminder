@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stop-hook launcher: runs the bundled package without installing it."""
+"""Launcher the mod runs after each response: the bundled package, without installing it."""
 
 import os
 import sys

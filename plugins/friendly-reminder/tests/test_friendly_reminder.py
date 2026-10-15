@@ -160,20 +160,38 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(f.glasses(5000), "≈ 20 glasses")
 
     def test_currency_conversion(self) -> None:
-        self.assertIn("R$ 0,0298", self.text(Settings(currency="BRL", exchange_rate=5.0)))
+        self.assertIn("R$ 0,0298", self.text(Settings(format="table", currency="BRL", exchange_rate=5.0)))
 
     def test_short_is_the_default_two_lines_with_water_first(self) -> None:
         self.assertEqual(Settings().format, "short")
         quota = Quota(plan="Pro", five_hour_pct=38, seven_day_pct=21)
         text = self.text(Settings(), "pt", today=self.month, month=self.month,
-                         billing=Billing("subscription", "Pro"), quota=quota)
-        first, second = text.splitlines()
-        self.assertTrue(first.startswith("💧 ≈ "))
+                         billing=Billing("subscription", "Pro"), quota=quota, flushed=False)
+        first, second = text.splitlines()  # no "partial" warning line
+        self.assertTrue(first.startswith("💧 "))
         self.assertIn("de água nesta resposta", first)
-        self.assertIn("mês ≈ 2,30 L", first)
-        self.assertTrue(second.startswith("⚡ ≈ "))
-        self.assertIn("4.477 tokens", second)
-        self.assertIn("cota Pro: 5h 38%, semana 21%", second)
+        self.assertIn("mês 2,3 L", first)
+        self.assertTrue(second.startswith("⚡ "))
+        self.assertIn("4,5 mil tokens", second)
+        self.assertNotIn("cota", second)  # quota stays hidden below 50%
+
+    def test_short_shows_quota_once_it_matters(self) -> None:
+        quota = Quota(plan="Pro", five_hour_pct=12, seven_day_pct=81)
+        text = self.text(Settings(), "en", billing=Billing("subscription", "Pro"), quota=quota)
+        self.assertIn("Pro quota: 5h 12%, week 81%", text)
+
+    def test_compact_numbers(self) -> None:
+        f = Formatter(Settings(), "pt")
+        self.assertEqual(f.compact_water(12.34), "12 mL")
+        self.assertEqual(f.compact_water(2.01), "2 mL")
+        self.assertEqual(f.compact_water(1420), "1,4 L")
+        self.assertEqual(f.compact_water(18_600), "19 L")
+        self.assertEqual(f.compact_energy(3.42), "3,4 Wh")
+        self.assertEqual(f.compact_tokens(326_353), "326 mil")
+        self.assertEqual(f.compact_tokens(2_064_412), "2,1 mi")
+        self.assertEqual(f.compact_money(0.201), "US$ 0,20")
+        self.assertEqual(f.compact_money(0.001), "menos de US$ 0,01")
+        self.assertEqual(Formatter(Settings(), "en").compact_tokens(326_353), "326k")
 
     def test_detailed_adds_breakdown_and_range(self) -> None:
         text = self.text(Settings(format="detailed"))
@@ -287,8 +305,8 @@ class HookEndToEndTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             message = json.loads(result.stdout)["systemMessage"]
             self.assertIn("of water in this response", message)
-            self.assertIn("4,477 tokens", message)
-            self.assertIn("today ≈ ", message)
+            self.assertIn("4.5k tokens", message)
+            self.assertIn("today 2 mL", message)
             self.assertTrue(list(Path(tmp, "history").glob("*.jsonl")))
 
     def test_off_is_silent_but_still_records(self) -> None:

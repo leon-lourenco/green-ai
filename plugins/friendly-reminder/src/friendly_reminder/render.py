@@ -15,13 +15,16 @@ from .models import Quota, Totals
 
 TITLE = "Friendly Reminder"
 GLASS_ML = 250.0
+QUOTA_SHOW_PCT = 50  # the short format mentions quota only once it starts to matter
 
 STRINGS: Dict[str, Dict[str, str]] = {
     "en": {
         "turn_n": "turn {n}",
         "headline": "This response used ≈ {water} of water, {glass}.",
-        "short_water": "≈ {water} of water in this response ({glass})",
+        "short_water": "{water} of water in this response ({glass})",
         "short_quota": "{plan} quota: 5h {five}, week {week}",
+        "short_tokens": "{n} tokens",
+        "under": "under {amount}",
         "glass_share": "{pct} of a glass",
         "glass_tiny": "under 1% of a glass",
         "glasses": "≈ {n} glasses",
@@ -51,8 +54,10 @@ STRINGS: Dict[str, Dict[str, str]] = {
     "pt": {
         "turn_n": "turno {n}",
         "headline": "Esta resposta consumiu ≈ {water} de água, {glass}.",
-        "short_water": "≈ {water} de água nesta resposta ({glass})",
+        "short_water": "{water} de água nesta resposta ({glass})",
         "short_quota": "cota {plan}: 5h {five}, semana {week}",
+        "short_tokens": "{n} tokens",
+        "under": "menos de {amount}",
         "glass_share": "{pct} de um copo",
         "glass_tiny": "menos de 1% de um copo",
         "glasses": "≈ {n} copos",
@@ -123,6 +128,36 @@ class Formatter:
         if value >= 1:
             return self.number(value, 2)
         return self.number(value, 3)
+
+    def _round(self, value: float) -> str:
+        """Two significant figures at most: 3,4 · 12 · 326 (and 2, not 2,0)."""
+        if 0 < value < 10 and round(value, 1) < 10 and round(value, 1) != round(value):
+            return self.number(value, 1)
+        return self.number(value)
+
+    def compact_water(self, ml: float) -> str:
+        return self._round(ml / 1000) + " L" if ml >= 1000 else self._round(ml) + " mL"
+
+    def compact_energy(self, wh: float) -> str:
+        return self._round(wh / 1000) + " kWh" if wh >= 1000 else self._round(wh) + " Wh"
+
+    def compact_tokens(self, value: int) -> str:
+        """326 mil / 326k, 2,1 mi / 2.1M."""
+        suffixes = ((1e9, " bi"), (1e6, " mi"), (1e3, " mil")) if self.lang == "pt" else (
+            (1e9, "B"), (1e6, "M"), (1e3, "k"))
+        for size, suffix in suffixes:
+            if value >= size:
+                return self._round(value / size) + suffix
+        return self.number(value)
+
+    def compact_money(self, usd: float, complete: bool = True) -> str:
+        amount = usd * self.s.exchange_rate
+        code = self.s.currency
+        en_symbol, pt_symbol = CURRENCY_SYMBOLS.get(code, (code + " ", code + " "))
+        symbol = pt_symbol if self.lang == "pt" else en_symbol
+        if 0 < amount < 0.005:
+            return self.t["under"].format(amount=symbol + self.number(0.01, 2))
+        return symbol + self.number(amount, 2) + ("" if complete else "*")
 
     def energy(self, wh: float) -> str:
         return self._sig(wh / 1000) + " kWh" if wh >= 1000 else self._sig(wh) + " Wh"
@@ -210,25 +245,24 @@ def render(
     quota_line = _quota_line(f, quota, billing)
 
     if settings.format == "short":
-        first = ["💧 " + t["short_water"].format(water=f.water(water_ml), glass=f.glasses(water_ml))]
+        first = ["💧 " + t["short_water"].format(water=f.compact_water(water_ml), glass=f.glasses(water_ml))]
         if today is not None and month is not None:
             first += [
-                f"{t['today'].lower()} ≈ {f.water(today.footprint.water_ml)}",
-                f"{t['month'].lower()} ≈ {f.water(month.footprint.water_ml)}",
+                f"{t['today'].lower()} {f.compact_water(today.footprint.water_ml)}",
+                f"{t['month'].lower()} {f.compact_water(month.footprint.water_ml)}",
             ]
         second = [
-            "⚡ ≈ " + f.energy(turn.footprint.wh),
-            f"{f.tokens(turn.usage.total)} tokens",
-            f.money(turn.cost_usd, turn.cost_complete),
+            "⚡ " + f.compact_energy(turn.footprint.wh),
+            t["short_tokens"].format(n=f.compact_tokens(turn.usage.total)),
+            f.compact_money(turn.cost_usd, turn.cost_complete),
         ]
-        if quota and billing.is_subscription:
+        if quota and billing.is_subscription and max(
+            quota.five_hour_pct or 0, quota.seven_day_pct or 0
+        ) >= QUOTA_SHOW_PCT:
             pct = lambda v: "-" if v is None else f.number(v) + "%"  # noqa: E731
             second.append(t["short_quota"].format(
                 plan=quota.plan or "", five=pct(quota.five_hour_pct), week=pct(quota.seven_day_pct)))
-        lines = [" · ".join(first), " · ".join(second)]
-        if not flushed:
-            lines.append("! " + t["partial"])
-        return "\n".join(lines)
+        return " · ".join(first) + "\n" + " · ".join(second)
 
     spans = [turn] + ([month] if month is not None else [])
     headers = ["", t["turn"]] + ([t["month"]] if month is not None else [])

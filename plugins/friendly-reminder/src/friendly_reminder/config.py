@@ -56,10 +56,17 @@ def load_settings(env: Optional[Dict[str, str]] = None) -> Settings:
     return settings
 
 
+DATA_DIR_NAME = "friendly-reminder-green-ai"
+
+
 def data_dir() -> Optional[Path]:
-    """The plugin's persistent directory: history, optional overrides, error log."""
+    """The plugin's persistent directory: history, optional overrides, error log.
+
+    ``CLAUDE_PLUGIN_DATA`` when Claude Code sets it; otherwise the folder it
+    would name for this plugin, so the mod and a manual run share one history.
+    """
     value = os.environ.get("CLAUDE_PLUGIN_DATA")
-    return Path(value) if value else None
+    return Path(value) if value else claude_config_dir() / "plugins" / "data" / DATA_DIR_NAME
 
 
 def claude_config_dir() -> Path:

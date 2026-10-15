@@ -179,6 +179,34 @@ def load_when_flushed(path: Path, last_message: Optional[str], timeout_s: float)
         time.sleep(0.15)
 
 
+def turn_id(prompt: Optional[Entry]) -> str:
+    """The key a turn is recorded under: its opening prompt's id."""
+    return str((prompt or {}).get("uuid") or (prompt or {}).get("promptId") or "turn")
+
+
+def session_turns(transcript_path: Path, entries: List[Entry]) -> List[Tuple[Optional[Entry], List[ApiCall]]]:
+    """Every turn of a session as (opening prompt, calls), subagents included.
+
+    Calls logged before the first prompt (a resumed or SDK session) form a turn
+    of their own, with no prompt. A subagent call belongs to the last turn
+    that opened before it.
+    """
+    starts = turn_start_indexes(entries)
+    bounds = [0] + starts + [len(entries)]
+    prompts: List[Optional[Entry]] = [None] + [entries[i] for i in starts]
+    buckets: List[Dict[str, ApiCall]] = []
+    for n in range(len(prompts)):
+        first = bounds[n] + (1 if n else 0)
+        buckets.append({c.message_id: c for c in iter_calls(entries[first : bounds[n + 1]])})
+    opened = [str((p or {}).get("timestamp") or "") for p in prompts]
+    for sub in subagent_transcripts(transcript_path):
+        for call in iter_calls(read_entries(sub)):
+            # ISO-8601 UTC timestamps compare correctly as strings.
+            n = max((i for i, ts in enumerate(opened) if ts and call.timestamp and ts <= call.timestamp), default=0)
+            buckets[n].setdefault(call.message_id, call)
+    return [(prompts[n], list(b.values())) for n, b in enumerate(buckets) if b]
+
+
 def turn_calls(transcript_path: Path, entries: List[Entry]) -> Tuple[List[ApiCall], Optional[Entry]]:
     """Calls made since the turn's opening prompt (subagents included), and that prompt."""
     starts = turn_start_indexes(entries)

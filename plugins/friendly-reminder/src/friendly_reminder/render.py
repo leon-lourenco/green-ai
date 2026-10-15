@@ -8,7 +8,7 @@ comparison (see ``comparisons``), and heads the table.
 from __future__ import annotations
 
 import time
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import comparisons
 from .config import Billing, Settings
@@ -16,6 +16,11 @@ from .models import Quota, Totals
 
 TITLE = "Friendly Reminder"
 QUOTA_SHOW_PCT = 50  # the short format mentions quota only once it starts to matter
+
+MONTH_NAMES = {
+    "en": ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
+    "pt": ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"),
+}
 
 STRINGS: Dict[str, Dict[str, str]] = {
     "en": {
@@ -30,6 +35,7 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "turn": "Turn",
         "today": "Today",
         "month": "Month",
+        "by_month": "By month",
         "water": "Water",
         "energy": "Energy",
         "tokens": "Tokens",
@@ -60,6 +66,7 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "turn": "Turno",
         "today": "Hoje",
         "month": "Mês",
+        "by_month": "Por mês",
         "water": "Água",
         "energy": "Energia",
         "tokens": "Tokens",
@@ -153,6 +160,11 @@ class Formatter:
             return self.t["under"].format(amount=symbol + self.number(0.01, 2))
         return symbol + self.number(amount, 2) + ("" if complete else "*")
 
+    def month_name(self, key: str) -> str:
+        """``2026-10`` as ``Oct 2026`` / ``out 2026``."""
+        year, month = key.split("-")
+        return f"{MONTH_NAMES[self.lang][int(month) - 1]} {year}"
+
     def energy(self, wh: float) -> str:
         return self._sig(wh / 1000) + " kWh" if wh >= 1000 else self._sig(wh) + " Wh"
 
@@ -207,6 +219,7 @@ def render(
     quota: Optional[Quota] = None,
     today: Optional[Totals] = None,
     month: Optional[Totals] = None,
+    months: Sequence[Tuple[str, Totals]] = (),
     flushed: bool = True,
     seed: str = "",
 ) -> Optional[str]:
@@ -266,6 +279,15 @@ def render(
         [t["cost"]] + [f.money(s.cost_usd, s.cost_complete) for s in spans],
     ]
     lines = [title, headline] + ([history] if history else []) + _table(headers, rows)
+    if len(months) > 1:
+        lines += _table(
+            [t["by_month"], t["water"], t["energy"], t["tokens"], t["cost"]],
+            [
+                [f.month_name(key), "≈ " + f.water(m.footprint.water_ml), "≈ " + f.energy(m.footprint.wh),
+                 f.tokens(m.usage.total, exact=False), f.money(m.cost_usd, m.cost_complete)]
+                for key, m in months
+            ],
+        )
 
     if settings.format == "detailed":
         u = turn.usage

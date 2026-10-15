@@ -7,7 +7,7 @@ Every answer from an AI model costs water: the water that cools the data center,
 ⚡ 15 Wh · 1.3M tokens · $0.82
 ```
 
-- **Water** leads the message. It is an estimate built from published research, pictured as something everyday (see [Comparisons](#comparisons)), and totaled for the day and the month.
+- **Water** leads the message. It is an estimate built from published research, pictured as something everyday (see [Comparisons](#comparisons)), and totaled for the day and the month across all your Claude Code sessions.
 - **Energy** is estimated the same way.
 - **Tokens** are exact: the API's own counts for every request in the turn, subagents included.
 - **API cost** is exact at Anthropic's list prices, with cache writes and reads priced separately. On a subscription, this is the API-equivalent value of the work, not what you pay.
@@ -39,7 +39,7 @@ Click a button, or press `ctrl+x tab` to focus the band from the keyboard: Enter
 
 **short** (default) is the two lines above.
 
-**table** adds a title, a plain sentence, the day and month comparisons, and a turn/month table:
+**table** adds a title, a plain sentence, the day and month comparisons, a turn/month table and, once there is more than one month of history, a month-by-month table:
 
 ```
 💧 Friendly Reminder · turn 7 · opus-5-5
@@ -53,6 +53,12 @@ Today: ≈ 1.40 L (≈ 7.4 small glasses) · Month: ≈ 19.0 L (≈ 1.9 buckets)
 │ Tokens   │ 1,291,395 │      40.9M │
 │ API cost │    $0.818 │     $52.40 │
 └──────────┴───────────┴────────────┘
+┌──────────┬──────────┬────────────┬────────┬──────────┐
+│ By month │    Water │     Energy │ Tokens │ API cost │
+├──────────┼──────────┼────────────┼────────┼──────────┤
+│ Oct 2026 │ ≈ 19.0 L │ ≈ 5.20 kWh │  40.9M │   $52.40 │
+│ Sep 2026 │ ≈ 31.2 L │ ≈ 8.60 kWh │  66.0M │   $87.10 │
+└──────────┴──────────┴────────────┴────────┴──────────┘
 Max quota: 5h 34% · week 58%
 ```
 
@@ -98,7 +104,8 @@ Use **Options** on the band, or open `/config` and edit the **Friendly Reminder*
 
 Everything the plugin keeps is in its data directory, `~/.claude/plugins/data/friendly-reminder-green-ai/`:
 
-- `history/YYYY-MM.jsonl` holds one line per response: tokens, cost, energy, water and models. The day and month totals come from here. Delete a file to reset that month.
+- `history/YYYY-MM.jsonl` holds one line per response: tokens, cost, energy, water and models. The day, month and month-by-month totals come from here. Delete a file to reset that month (sessions still on disk are counted again after the next response).
+- `sync-state.json` remembers which transcripts were already read. Delete it to read them all again.
 - `error.log` collects any error, so a failure never interrupts your session.
 - `pricing.json` (optional) adds or replaces model prices, using the same shape as [`data/pricing.json`](data/pricing.json).
 - `footprint.json` (optional) replaces water and energy factors, using the same shape as [`data/footprint.json`](data/footprint.json).
@@ -136,8 +143,10 @@ Friendly Reminder is a mod: a plugin whose hooks module (`hooks/register.tsx`) d
 1. The module runs `scripts/friendly-reminder`, passing it the turn's `Stop` payload and your settings.
 2. The script reads the session transcript and the subagent transcripts beside it.
 3. It sums the `usage` of every API call since the turn's opening prompt, prices it, and estimates energy and water.
-4. It records the turn in the history, keyed by session and turn, so measuring the same turn twice never counts it twice. The day and month totals come from the history.
-5. The module draws the result above the prompt.
+4. It records the turn in the history, keyed by session and turn, so measuring the same turn twice never counts it twice.
+5. It reads the other transcripts in `~/.claude/projects` that changed since its last run and records any turn the history lacks: other sessions and windows, sessions started before the plugin was installed, turns interrupted with Esc. Only transcripts touched since the start of last month are read, and a run stops after 6 seconds and continues after the next response, so the first one after installing can take a few responses to catch up.
+6. The day, month and month-by-month totals come from the history.
+7. The module draws the result above the prompt.
 
 A pick in **Options** writes the `/config` row, then runs step 1 again for the last response with the new setting.
 
@@ -154,7 +163,9 @@ The plugin never reads credentials. Billing detection looks only at provider swi
 - Water and energy are estimates with a wide range. Tokens and API cost are exact.
 - Prices are a snapshot (`as_of` in `data/pricing.json`). Bedrock and Vertex use partner pricing, which can differ.
 - Quota comes from an undocumented cache in `~/.claude.json`, so it is only as fresh as Claude Code's last fetch. Subscriptions have 5-hour and weekly limits, not a monthly allowance.
-- A turn interrupted with Esc doesn't fire `Stop`, so it is missing from the history.
+- A turn interrupted with Esc doesn't fire `Stop`. It enters the totals after the next response, when the transcripts are read again.
+- The history only goes back as far as the transcripts Claude Code keeps (30 days by default, `cleanupPeriodDays`) and to the start of last month.
+- The response's own numbers are read the moment it ends, so once in a while they miss the last request. The totals fix that after the next response.
 - Mods are an early-access Claude Code feature, and their API may change between releases.
 - Where an organization manages Claude Code, it runs `Stop` hooks only for plugins listed in managed settings, so the band stays empty.
 - The Claude mobile app shows the band without **Options**, since it can't draw pickers yet.

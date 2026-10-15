@@ -2,8 +2,9 @@
 
 One JSON line per turn in ``<data dir>/history/YYYY-MM.jsonl``. A turn can be
 recorded more than once (a Stop hook that makes Claude continue fires Stop
-again for the same turn), so readers keep the last record per
-``(session, turn)``.
+again for the same turn, and ``sync`` records turns the band missed), so
+readers keep the last record per ``(session, turn)``, across months. A row
+belongs to the month and day of its ``ts``.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .models import Footprint, Totals, Usage
 
@@ -41,20 +42,22 @@ def record(root: Path, session_id: str, turn_id: str, totals: Totals, when: Opti
         handle.write(json.dumps(line, separators=(",", ":")) + "\n")
 
 
-def _rows(path: Path) -> Dict[Tuple[Any, Any], Dict[str, Any]]:
-    latest: Dict[Tuple[Any, Any], Dict[str, Any]] = {}
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return latest
-    for line in lines:
+def latest(root: Path) -> Dict[Tuple[Any, Any], Dict[str, Any]]:
+    """The last record of every turn, across all months."""
+    rows: Dict[Tuple[Any, Any], Dict[str, Any]] = {}
+    for path in sorted((root / "history").glob("*.jsonl")):
         try:
-            row = json.loads(line)
-        except json.JSONDecodeError:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
             continue
-        if isinstance(row, dict):
-            latest[(row.get("session"), row.get("turn"))] = row
-    return latest
+        for line in lines:
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(row, dict):
+                rows[(row.get("session"), row.get("turn"))] = row
+    return rows
 
 
 def _add(totals: Totals, row: Dict[str, Any]) -> None:
@@ -67,10 +70,21 @@ def _add(totals: Totals, row: Dict[str, Any]) -> None:
 def summary(root: Path, when: Optional[datetime] = None) -> Tuple[Totals, Totals]:
     """Totals for (today, this month), in local time."""
     when = when or datetime.now().astimezone()
-    today_prefix = f"{when:%Y-%m-%d}"
     day, month = Totals(), Totals()
-    for row in _rows(_month_file(root, when)).values():
-        _add(month, row)
-        if str(row.get("ts", "")).startswith(today_prefix):
-            _add(day, row)
+    for row in latest(root).values():
+        ts = str(row.get("ts", ""))
+        if ts.startswith(f"{when:%Y-%m}"):
+            _add(month, row)
+            if ts.startswith(f"{when:%Y-%m-%d}"):
+                _add(day, row)
     return day, month
+
+
+def monthly(root: Path, limit: int = 6) -> List[Tuple[str, Totals]]:
+    """Totals per month (``YYYY-MM``), newest first."""
+    months: Dict[str, Totals] = {}
+    for row in latest(root).values():
+        key = str(row.get("ts", ""))[:7]
+        if len(key) == 7:
+            _add(months.setdefault(key, Totals()), row)
+    return sorted(months.items(), reverse=True)[:limit]

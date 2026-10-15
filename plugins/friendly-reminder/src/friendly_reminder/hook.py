@@ -15,14 +15,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from . import __version__, history
+from . import __version__, history, sync
 from .config import BUNDLED_DATA, claude_state_file, data_dir, detect_billing, detect_language, load_settings
 from .footprint import FootprintModel
 from .meter import aggregate
 from .pricing import PriceBook
 from .quota import read_quota
 from .render import render
-from .transcript import load_when_flushed, turn_calls, turn_start_indexes
+from .transcript import load_when_flushed, turn_calls, turn_id, turn_start_indexes
 
 FLUSH_TIMEOUT_S = 3.0
 
@@ -52,16 +52,23 @@ def build_message(payload: Dict[str, Any]) -> Optional[str]:
     turn = aggregate(calls, prices, footprint, settings.footprint_profile, settings.water_scope)
 
     session_id = str(payload.get("session_id") or path.stem)
-    turn_id = str((prompt or {}).get("uuid") or (prompt or {}).get("promptId") or "turn")
+    turn_key = turn_id(prompt)
     today = month = None
+    months = []
     if data:
-        history.record(data, session_id, turn_id, turn)
+        history.record(data, session_id, turn_key, turn)
+        try:
+            # Other sessions, and turns this band never saw, count in the totals too.
+            sync.sync(data, prices, footprint, settings.footprint_profile, settings.water_scope)
+        except Exception:  # noqa: BLE001 - the turn's own numbers still show
+            _log_error()
         today, month = history.summary(data)
+        months = history.monthly(data)
 
     quota = read_quota(claude_state_file(), billing.plan) if billing.is_subscription else None
     return render(
         turn, len(turn_start_indexes(entries)), settings, language, billing,
-        quota=quota, today=today, month=month, flushed=flushed, seed=f"{session_id}:{turn_id}",
+        quota=quota, today=today, month=month, months=months, flushed=flushed, seed=f"{session_id}:{turn_key}",
     )
 
 

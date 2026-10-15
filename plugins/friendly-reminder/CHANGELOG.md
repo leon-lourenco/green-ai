@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0 - 2026-10-15
+
+- Day and month totals now count every Claude Code session, not only the responses the band measured. After each response the plugin reads the transcripts that changed and records what the history is missing: other sessions and windows, sessions started before the plugin was installed, turns interrupted with Esc, and turns whose numbers were read before the last request reached the disk.
+- **table** and **detailed** show a month-by-month table once there is more than one month of history.
+- A turn recorded in one month's file and again in the next counts once.
+
 ## 1.0.0 - 2026-10-15
 
 First stable release.

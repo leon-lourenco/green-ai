@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from friendly_reminder import history  # noqa: E402
+from friendly_reminder import history, sync  # noqa: E402
 from friendly_reminder.config import BUNDLED_DATA, Billing, Settings, detect_billing, load_settings  # noqa: E402
 from friendly_reminder.footprint import FootprintModel  # noqa: E402
 from friendly_reminder.meter import aggregate  # noqa: E402
@@ -25,6 +25,7 @@ from friendly_reminder.render import Formatter, render  # noqa: E402
 from friendly_reminder.transcript import (  # noqa: E402
     parse_usage,
     read_entries,
+    session_turns,
     turn_calls,
     turn_is_flushed,
     turn_start_indexes,
@@ -54,6 +55,13 @@ class TranscriptTests(unittest.TestCase):
         calls, prompt = turn_calls(FIXTURE, self.entries)
         self.assertEqual(prompt["uuid"], "p2")
         self.assertEqual(sorted(c.message_id for c in calls), ["m3", "s1"])
+
+    def test_session_turns_split_every_turn(self) -> None:
+        turns = session_turns(FIXTURE, self.entries)
+        self.assertEqual(
+            [(prompt["uuid"], sorted(c.message_id for c in calls)) for prompt, calls in turns],
+            [("p1", ["m1", "m2", "s0"]), ("p2", ["m3", "s1"])],
+        )
 
     def test_iterations_are_summed(self) -> None:
         calls, _ = turn_calls(FIXTURE, self.entries)
@@ -148,6 +156,21 @@ class RenderTests(unittest.TestCase):
         self.assertIn("Hoje: ≈ 2,30 L (≈ 1,1 garrafas de 2 L) · Mês: ≈ 2,30 L (≈ 1,1 garrafas de 2 L)", text)
         self.assertIn("Mês", text.splitlines()[4])
         self.assertIn("US$ 12,30", text)
+
+    def test_month_by_month_table(self) -> None:
+        months = [("2026-10", self.month), ("2026-09", self.turn)]
+        text = self.text(today=self.month, month=self.month, months=months)
+        self.assertIn("│ Por mês  │", text)
+        self.assertIn("│ out 2026 │  ≈ 2,30 L │", text)
+        self.assertIn("│ set 2026 │", text)
+        english = self.text(Settings(format="detailed"), "en", today=self.month, month=self.month, months=months)
+        self.assertIn("│ Oct 2026 │", english)
+
+    def test_one_month_or_the_short_format_has_no_month_table(self) -> None:
+        self.assertNotIn("Por mês", self.text(today=self.month, month=self.month, months=[("2026-10", self.month)]))
+        months = [("2026-10", self.month), ("2026-09", self.turn)]
+        short = self.text(Settings(), today=self.month, month=self.month, months=months)
+        self.assertNotIn("Por mês", short)
 
     def test_without_history_there_is_no_month_column(self) -> None:
         self.assertNotIn("Mês", self.text())
@@ -307,11 +330,85 @@ class HistoryTests(unittest.TestCase):
             self.assertEqual((today.turns, today.footprint.water_ml), (1, 10.0))
 
 
+    def test_rows_dedupe_across_months_and_group_by_month(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sep = datetime(2026, 9, 30, 23, 0).astimezone()
+            oct1 = datetime(2026, 10, 1, 0, 5).astimezone()
+            one = Totals(usage=Usage(output=10), footprint=Footprint(1.0, 10.0))
+            two = Totals(usage=Usage(output=20), footprint=Footprint(2.0, 20.0))
+            history.record(root, "s", "t1", one, sep)
+            history.record(root, "s", "t1", two, oct1)  # the same turn, later and in the next month's file
+            history.record(root, "s", "t2", one, sep)
+            months = history.monthly(root)
+            self.assertEqual(
+                [(key, m.turns, m.footprint.water_ml) for key, m in months],
+                [("2026-10", 1, 20.0), ("2026-09", 1, 10.0)],
+            )
+
+
+class SyncTests(unittest.TestCase):
+    now = datetime(2026, 10, 15, 12, 0, tzinfo=timezone.utc)
+
+    def projects(self, tmp: str) -> Path:
+        folder = Path(tmp, "projects", "-home-someone-project")
+        (folder / "other" / "subagents").mkdir(parents=True)
+        (folder / "other.jsonl").write_text(FIXTURE.read_text())
+        (folder / "other" / "subagents" / "agent-a.jsonl").write_text(
+            (FIXTURE.parent / "session" / "subagents" / "agent-a.jsonl").read_text())
+        return folder.parent
+
+    def run_sync(self, tmp: str, **kwargs) -> int:
+        return sync.sync(Path(tmp, "data"), PRICES, FOOTPRINT, projects=Path(tmp, "projects"), now=self.now, **kwargs)
+
+    def test_records_every_turn_of_other_sessions_once(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            self.projects(tmp)
+            self.assertEqual(self.run_sync(tmp), 2)
+            self.assertEqual(self.run_sync(tmp), 0)  # nothing changed since
+            rows = history.latest(Path(tmp, "data"))
+            self.assertEqual(sorted(rows), [("other", "p1"), ("other", "p2")])
+            self.assertTrue(rows[("other", "p1")]["ts"].startswith("2026-10-14"))
+
+    def test_turn_already_recorded_by_the_band_is_kept(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            self.projects(tmp)
+            entries = read_entries(FIXTURE)
+            calls, _ = turn_calls(FIXTURE, entries)
+            history.record(Path(tmp, "data"), "other", "p2", aggregate(calls, PRICES, FOOTPRINT), self.now)
+            self.assertEqual(self.run_sync(tmp), 1)  # only p1 was missing
+
+    def test_a_grown_transcript_updates_its_turn(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            projects = self.projects(tmp)
+            self.run_sync(tmp)
+            before = history.latest(Path(tmp, "data"))[("other", "p2")]["usage"]["output"]
+            transcript = projects / "-home-someone-project" / "other.jsonl"
+            line = {"type": "assistant", "uuid": "m4-0", "timestamp": "2026-10-14T11:00:20.000Z",
+                    "message": {"id": "m4", "model": "claude-opus-5-5", "stop_reason": "end_turn",
+                                "content": [], "usage": {"input_tokens": 5, "output_tokens": 50}}}
+            with transcript.open("a") as handle:
+                handle.write("\n" + json.dumps(line) + "\n")
+            self.assertEqual(self.run_sync(tmp), 1)
+            p2 = history.latest(Path(tmp, "data"))[("other", "p2")]
+            self.assertEqual(p2["usage"]["output"], before + 50)
+
+    def test_old_transcripts_and_an_exhausted_budget_record_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            self.projects(tmp)
+            self.assertEqual(self.run_sync(tmp, budget_s=0), 0)
+            later = datetime(2027, 1, 10, tzinfo=timezone.utc)
+            self.assertEqual(
+                sync.sync(Path(tmp, "data"), PRICES, FOOTPRINT, projects=Path(tmp, "projects"), now=later), 0)
+
+
 class HookEndToEndTests(unittest.TestCase):
     script = ROOT / "scripts" / "friendly-reminder"
 
     def run_hook(self, payload: dict, tmp: str, **env: str) -> subprocess.CompletedProcess:
-        env = {**os.environ, "CLAUDE_PLUGIN_DATA": tmp, "CLAUDE_PLUGIN_OPTION_LANGUAGE": "en", **env}
+        # An empty config dir keeps the sync away from the real ~/.claude/projects.
+        env = {**os.environ, "CLAUDE_PLUGIN_DATA": tmp, "CLAUDE_CONFIG_DIR": str(Path(tmp, "config")),
+               "CLAUDE_PLUGIN_OPTION_LANGUAGE": "en", **env}
         return subprocess.run(
             [sys.executable, str(self.script)],
             input=json.dumps(payload), capture_output=True, text=True, env=env, timeout=30,
@@ -329,6 +426,26 @@ class HookEndToEndTests(unittest.TestCase):
             self.assertIn("4.5k tokens", message)
             self.assertIn("today 2 mL", message)
             self.assertTrue(list(Path(tmp, "history").glob("*.jsonl")))
+
+    def test_totals_count_other_sessions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp, "config", "projects", "-home-someone-other")
+            folder.mkdir(parents=True)
+            stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            lines = []
+            for line in FIXTURE.read_text().splitlines():
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if "timestamp" in entry:
+                    entry["timestamp"] = stamp
+                lines.append(json.dumps(entry))
+            (folder / "elsewhere.jsonl").write_text("\n".join(lines) + "\n")
+            result = self.run_hook(self.payload(), tmp)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            sessions = {session for session, _ in history.latest(Path(tmp))}
+            self.assertEqual(sessions, {"abc", "elsewhere"})
 
     def test_off_is_silent_but_still_records(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0 - 2026-10-17
+
+- Added Google Antigravity (`agy`) adapter: parse Antigravity's JSONL transcripts and run Friendly Reminder via lifecycle hooks (`PostInvocation`), workspace skills, or CLI (`scripts/friendly-reminder-agy`).
+- Expanded pricing to include Google Gemini models (`gemini-3.8-flash`, `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`, `gemini-1.5-pro`) and OpenAI models (`gpt-4o`, `gpt-4o-mini`).
+- Multi-agent data persistence: unified data directory fallback supporting both `~/.claude/` and `~/.gemini/` as well as `GREEN_AI_DATA`.
+
 ## 1.1.0 - 2026-10-15
 
 - Day and month totals now count every Claude Code session, not only the responses the band measured. After each response the plugin reads the transcripts that changed and records what the history is missing: other sessions and windows, sessions started before the plugin was installed, turns interrupted with Esc, and turns whose numbers were read before the last request reached the disk.

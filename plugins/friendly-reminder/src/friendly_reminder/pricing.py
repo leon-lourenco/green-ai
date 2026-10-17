@@ -21,15 +21,21 @@ def normalize_model(name: str) -> str:
 
     ``us.anthropic.claude-opus-5-5-v1:0`` -> ``claude-opus-5-5``,
     ``claude-opus-4-5@20251101`` -> ``claude-opus-4-5``,
-    ``claude-sonnet-5[1m]`` -> ``claude-sonnet-5``.
+    ``claude-sonnet-5[1m]`` -> ``claude-sonnet-5``,
+    ``Gemini 3.8 Flash (High)`` -> ``gemini-3.8-flash``.
     """
     model = name.strip().lower()
     model = re.sub(r"\[.*?\]", "", model)
+    model = re.sub(r"\(.*?\)", "", model).strip()
     if "anthropic." in model:
         model = model.split("anthropic.", 1)[1]
+    if "google." in model:
+        model = model.split("google.", 1)[1]
     model = model.split("@", 1)[0]
     model = _BEDROCK_SUFFIX.sub("", model)
     model = _DATE_SUFFIX.sub("", model)
+    if " " in model:
+        model = re.sub(r"\s+", "-", model)
     return model
 
 

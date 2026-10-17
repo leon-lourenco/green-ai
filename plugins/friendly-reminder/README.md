@@ -17,14 +17,26 @@ It speaks English by default, with Portuguese one click away. It detects your bi
 
 ## Install
 
+### Claude Code
+
 ```text
 /plugin marketplace add leon-lourenco/green-ai
 /plugin install friendly-reminder@green-ai
 ```
 
 The reminder appears after your next response. On Windows, make sure `python3` is on `PATH`.
-
 To update later, run `/plugin marketplace update green-ai`, then `/reload-plugins` (or start a new session).
+
+### Google Antigravity (`agy`)
+
+Friendly Reminder integrates directly with Antigravity via lifecycle hooks or workspace skills:
+
+1. **Workspace Hook**: Copy or keep `.agents/hooks.json` in your repository root.
+2. **Global Hook**: To enable it for all your `agy` sessions, copy `.agents/hooks.json` to `~/.gemini/config/hooks.json`.
+3. **Manual CLI**: Check any active or past session directly:
+   ```bash
+   ./scripts/friendly-reminder-agy --text
+   ```
 
 ## The band
 
@@ -138,17 +150,23 @@ Sources and assumptions are listed in [`data/footprint.json`](data/footprint.jso
 
 ## How it works
 
-Friendly Reminder is a mod: a plugin whose hooks module (`hooks/register.tsx`) draws in Claude Code's interface. When Claude finishes a response:
+Friendly Reminder is built around a shared, agent-agnostic Python core (`meter`, `footprint`, `pricing`, `comparisons`, `history`) with dedicated adapters for different AI environments:
 
-1. The module runs `scripts/friendly-reminder`, passing it the turn's `Stop` payload and your settings.
-2. The script reads the session transcript and the subagent transcripts beside it.
+### In Claude Code
+
+1. The hooks module (`hooks/register.tsx`) intercepts the `Stop` event and runs `scripts/friendly-reminder`.
+2. The script reads the session transcript and subagent transcripts beside it.
 3. It sums the `usage` of every API call since the turn's opening prompt, prices it, and estimates energy and water.
 4. It records the turn in the history, keyed by session and turn, so measuring the same turn twice never counts it twice.
-5. It reads the other transcripts in `~/.claude/projects` that changed since its last run and records any turn the history lacks: other sessions and windows, sessions started before the plugin was installed, turns interrupted with Esc. Only transcripts touched since the start of last month are read, and a run stops after 6 seconds and continues after the next response, so the first one after installing can take a few responses to catch up.
-6. The day, month and month-by-month totals come from the history.
-7. The module draws the result above the prompt.
+5. It reads other transcripts in `~/.claude/projects` to keep day and month totals synchronized across sessions.
+6. The module draws the result in an interactive band above the prompt.
 
-A pick in **Options** writes the `/config` row, then runs step 1 again for the last response with the new setting.
+### In Google Antigravity (`agy`)
+
+1. The `PostInvocation` lifecycle hook or workspace skill runs `scripts/friendly-reminder-agy` (`adapters/agy.py`).
+2. It parses Antigravity's JSONL transcripts from `~/.gemini/*/brain/.../transcript.jsonl`, reading `input_tokens`, `cache_read_tokens`, and `output_tokens` for the turn.
+3. It prices Gemini and OpenAI models and estimates cooling water and electrical generation impact.
+4. It records the turn in the shared history and injects the reminder into the workflow or prints it cleanly to the terminal.
 
 The plugin never reads credentials. Billing detection looks only at provider switches, at whether an API key is present, and at the plan type in `~/.claude.json`.
 

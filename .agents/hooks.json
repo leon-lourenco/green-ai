@@ -1,0 +1,11 @@
+{
+  "friendly-reminder": {
+    "PostInvocation": [
+      {
+        "type": "command",
+        "command": "./plugins/friendly-reminder/scripts/friendly-reminder-agy",
+        "timeout": 10
+      }
+    ]
+  }
+}

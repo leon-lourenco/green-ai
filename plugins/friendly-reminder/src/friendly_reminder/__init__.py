@@ -1,3 +1,3 @@
-"""Friendly Reminder: after each Claude Code response, show what the turn used."""
+"""Friendly Reminder: after each response, show what the turn used."""
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"

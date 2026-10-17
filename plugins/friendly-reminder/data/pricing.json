@@ -21,6 +21,14 @@
     "claude-sonnet-4-6":  { "input": 3.0,  "output": 15.0, "cache_read": 0.30 },
     "claude-haiku-5-5":   { "input": 0.10, "output": 0.50, "cache_read": 0.01,
                             "long_context": { "above_prompt_tokens": 100000, "input": 0.50, "output": 2.50, "cache_read": 0.05 } },
-    "claude-haiku-4-5":   { "input": 1.0,  "output": 5.0,  "cache_read": 0.10 }
+    "claude-haiku-4-5":   { "input": 1.0,  "output": 5.0,  "cache_read": 0.10 },
+    "gemini-3.8-flash":   { "input": 0.10, "output": 0.40, "cache_read": 0.025 },
+    "gemini-2.5-flash":   { "input": 0.10, "output": 0.40, "cache_read": 0.025 },
+    "gemini-2.5-pro":     { "input": 1.25, "output": 5.00, "cache_read": 0.3125 },
+    "gemini-2.0-flash":   { "input": 0.10, "output": 0.40, "cache_read": 0.025 },
+    "gemini-1.5-flash":   { "input": 0.075, "output": 0.30, "cache_read": 0.01875 },
+    "gemini-1.5-pro":     { "input": 1.25, "output": 5.00, "cache_read": 0.3125 },
+    "gpt-4o":             { "input": 2.50, "output": 10.00, "cache_read": 1.25 },
+    "gpt-4o-mini":        { "input": 0.15, "output": 0.60, "cache_read": 0.075 }
   }
 }

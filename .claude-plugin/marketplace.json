@@ -18,6 +18,20 @@
         "tokens",
         "cost"
       ]
+    },
+    {
+      "name": "virtual-garden",
+      "source": "./plugins/virtual-garden",
+      "description": "A mindful virtual ASCII garden that grows and blossoms with efficient AI development habits.",
+      "category": "sustainability",
+      "tags": [
+        "garden",
+        "gamification",
+        "ascii",
+        "sustainability",
+        "eco",
+        "cache"
+      ]
     }
   ]
 }

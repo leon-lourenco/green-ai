@@ -180,8 +180,22 @@ def load_when_flushed(path: Path, last_message: Optional[str], timeout_s: float)
 
 
 def turn_id(prompt: Optional[Entry]) -> str:
-    """The key a turn is recorded under: its opening prompt's id."""
-    return str((prompt or {}).get("uuid") or (prompt or {}).get("promptId") or "turn")
+    """The key a turn is recorded under: its opening prompt's id.
+
+    Falls back to a hash of the prompt's timestamp + content when neither
+    ``uuid`` nor ``promptId`` are present, so concurrent turns without ids
+    do not collide in the history.
+    """
+    if prompt is None:
+        return "turn"
+    uid = prompt.get("uuid") or prompt.get("promptId")
+    if uid:
+        return str(uid)
+    # Stable surrogate key derived from timestamp + truncated content, so
+    # different turns without an id still produce distinct history rows.
+    import hashlib  # noqa: PLC0415 – lazy import keeps the cold path cheap
+    raw = f"{prompt.get('timestamp', '')}{str(prompt.get('message', ''))}"
+    return "turn-" + hashlib.sha256(raw.encode()).hexdigest()[:12]
 
 
 def session_turns(transcript_path: Path, entries: List[Entry]) -> List[Tuple[Optional[Entry], List[ApiCall]]]:

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.1 - 2026-10-18
+
+- agy: the hook now runs on `Stop`, once per turn, and adds nothing to the conversation. `PostInvocation` ran after every model call and put the reminder into the agent's context. Antigravity hooks can't show text, so `--text` (or the workspace skill) shows the reminder.
+- agy: `--install-hook` registers the hook in `~/.gemini/config/hooks.json` by absolute path, keeping other hooks. Copying `.agents/hooks.json` there didn't work outside this repository.
+- agy: every conversation was recorded under the same session (`.system_generated`), so turns of different conversations overwrote each other in the history. The session is now the conversation folder's id.
+- agy: prompts that got no answer are skipped, so a manual run shows the last answered turn instead of nothing.
+- agy: the model comes from the hook payload or, on a manual run, from `~/.gemini/antigravity-cli/settings.json`, since transcripts don't record it.
+- agy: `--text` no longer reads stdin, which hung when an agent's shell left the pipe open.
+- Gemini prices from the Gemini API pricing page (2026-10-16). 1.2.0 had the 2.0 Flash price on every Flash model and half the 2.5 Pro output price; 2.5 Pro and 3.1 Pro now have their long-context tier.
+- The data folder is always Claude Code's (or `GREEN_AI_DATA`), so the history no longer splits when agy was installed first.
+
 ## 1.2.0 - 2026-10-17
 
 - Added Google Antigravity (`agy`) adapter: parse Antigravity's JSONL transcripts and run Friendly Reminder via lifecycle hooks (`PostInvocation`), workspace skills, or CLI (`scripts/friendly-reminder-agy`).

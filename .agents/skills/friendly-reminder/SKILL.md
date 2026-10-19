@@ -12,7 +12,7 @@ Every answer from an AI model costs water: the water that cools the data center,
 
 ## Quick Check
 
-To inspect the environmental cost of the latest response or conversation turn:
+Run these from the repository root. To inspect the environmental cost of the last answered turn:
 
 ```bash
 ./plugins/friendly-reminder/scripts/friendly-reminder-agy --text

@@ -65,7 +65,8 @@ FUN: List[Unit] = [
     Unit(350, {"en": ("soda can", "soda cans", "a soda can"),
                "pt": ("latinha de refri", "latinhas de refri", "uma latinha de refri")}),
     Unit(4_000, {"en": ("goldfish bowl", "goldfish bowls", "a goldfish bowl"),
-                 "pt": ("aquário de peixinho dourado", "aquários de peixinho dourado", "um aquário de peixinho dourado")}),
+                 "pt": ("aquário de peixinho dourado", "aquários de peixinho dourado",
+                        "um aquário de peixinho dourado")}),
     # A 5 kg watermelon is about 92% water.
     Unit(4_600, {"en": ("watermelon", "watermelons", "a watermelon"),
                  "pt": ("melancia", "melancias", "uma melancia")}),

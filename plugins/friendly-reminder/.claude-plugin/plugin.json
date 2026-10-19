@@ -1,7 +1,7 @@
 {
   "name": "friendly-reminder",
   "displayName": "Friendly Reminder",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "A friendly reminder after every response of the water it took, plus energy, tokens, API cost and subscription quota, with a daily and monthly history.",
   "author": {
     "name": "Leon Lourenço Gomes"

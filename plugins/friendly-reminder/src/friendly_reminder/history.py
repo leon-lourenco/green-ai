@@ -55,7 +55,7 @@ def latest(root: Path) -> Dict[Tuple[Any, Any], Dict[str, Any]]:
                 row = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if isinstance(row, dict) and row.get("v") == SCHEMA_VERSION:
+            if isinstance(row, dict):
                 rows[(row.get("session"), row.get("turn"))] = row
     return rows
 

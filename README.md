@@ -13,12 +13,14 @@ Tools and plugins that make the environmental cost of AI visible. Currently supp
 
 ### Google Antigravity (agy)
 
-Workspace hooks (`.agents/hooks.json`), skills (`.agents/skills/`), or run directly:
-
 ```bash
-./plugins/friendly-reminder/scripts/friendly-reminder-agy --text
-./plugins/virtual-garden/scripts/virtual-garden-agy --full
+./plugins/friendly-reminder/scripts/friendly-reminder-agy --install-hook   # record every turn
+./plugins/friendly-reminder/scripts/friendly-reminder-agy --text           # show the last one
+./plugins/virtual-garden/scripts/virtual-garden-agy --install-hook         # grow the garden every turn
+./plugins/virtual-garden/scripts/virtual-garden-agy --full                 # show it
 ```
+
+Inside this repository, `.agents/` already holds the workspace hooks and skills. See each plugin's README: [friendly-reminder](plugins/friendly-reminder#google-antigravity-agy), [virtual-garden](plugins/virtual-garden#google-antigravity-agy).
 
 ## Plugins
 
@@ -35,7 +37,7 @@ Workspace hooks (`.agents/hooks.json`), skills (`.agents/skills/`), or run direc
 plugins/<name>/                   one plugin per folder
   .claude-plugin/plugin.json      Claude Code manifest
   src/<package>/                  shared Python engine
-    adapters/                     agent adapters (agy, claude, etc.)
+    adapters/                     adapters for tools other than Claude Code (agy)
   skills/ hooks/ scripts/ ...     agent components
 ```
 

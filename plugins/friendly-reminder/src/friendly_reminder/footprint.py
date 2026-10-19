@@ -25,7 +25,7 @@ class FootprintModel:
         self.assumptions = data.get("assumptions") or []
 
     @classmethod
-    def load(cls, bundled: Path, override: Optional[Path] = None) -> "FootprintModel":
+    def load(cls, bundled: Path, override: Optional[Path] = None) -> FootprintModel:
         data = json.loads(bundled.read_text(encoding="utf-8"))
         if override and override.is_file():
             extra = json.loads(override.read_text(encoding="utf-8"))

@@ -88,7 +88,8 @@ def main() -> int:
     try:
         message = build_message(json.loads(sys.stdin.read() or "{}"))
         if message:
-            sys.stdout.write(json.dumps({"systemMessage": message, "language": resolved_language()}, ensure_ascii=False))
+            out = {"systemMessage": message, "language": resolved_language()}
+            sys.stdout.write(json.dumps(out, ensure_ascii=False))
     except Exception:  # noqa: BLE001 - a hook must never break the session
         _log_error()
     return 0

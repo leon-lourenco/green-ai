@@ -64,19 +64,12 @@ DATA_DIR_NAME = "friendly-reminder-green-ai"
 def data_dir() -> Optional[Path]:
     """The plugin's persistent directory: history, optional overrides, error log.
 
-    ``GREEN_AI_DATA`` or ``CLAUDE_PLUGIN_DATA`` when set; otherwise falls back to
-    Claude Code or Gemini data directory.
+    ``GREEN_AI_DATA`` or ``CLAUDE_PLUGIN_DATA`` when set; otherwise the folder
+    Claude Code would name for this plugin, so the mod, the agy adapter and a
+    manual run share one history whichever tool was installed first.
     """
     value = os.environ.get("GREEN_AI_DATA") or os.environ.get("CLAUDE_PLUGIN_DATA")
-    if value:
-        return Path(value)
-    claude_path = claude_config_dir() / "plugins" / "data" / DATA_DIR_NAME
-    if claude_path.parent.is_dir():
-        return claude_path
-    gemini_path = Path.home() / ".gemini" / "plugins" / "data" / DATA_DIR_NAME
-    if (Path.home() / ".gemini").is_dir():
-        return gemini_path
-    return claude_path
+    return Path(value) if value else claude_config_dir() / "plugins" / "data" / DATA_DIR_NAME
 
 
 def claude_config_dir() -> Path:

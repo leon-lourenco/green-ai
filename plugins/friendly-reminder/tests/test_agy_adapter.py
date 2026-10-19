@@ -14,9 +14,19 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from friendly_reminder.adapters.agy import AgyAdapter, find_latest_agy_transcript, main, parse_agy_transcript  # noqa: E402
-from friendly_reminder.adapters.base import BaseAdapter  # noqa: E402
-from friendly_reminder.pricing import normalize_model  # noqa: E402
+from friendly_reminder.adapters.agy import (  # noqa: E402
+    AgyAdapter,
+    conversation_id,
+    find_latest_agy_transcript,
+    install_hook,
+    main,
+    parse_agy_transcript,
+    turn_key,
+)
+from friendly_reminder.config import BUNDLED_DATA  # noqa: E402
+from friendly_reminder.history import latest  # noqa: E402
+from friendly_reminder.models import ApiCall, Usage  # noqa: E402
+from friendly_reminder.pricing import PriceBook, normalize_model  # noqa: E402
 
 
 def _write_transcript(path: Path, lines: list) -> None:
@@ -35,11 +45,20 @@ class AgyAdapterTests(unittest.TestCase):
         self.transcript_path = self.dir_path / "transcript.jsonl"
         lines = [
             {"step_index": 0, "type": "USER_INPUT", "created_at": "2026-10-17T12:00:00Z", "content": "turn 1"},
-            {"step_index": 1, "type": "PLANNER_RESPONSE", "created_at": "2026-10-17T12:00:05Z", "input_tokens": 1000, "cache_read_tokens": 2000, "output_tokens": 150},
+            {
+                "step_index": 1, "type": "PLANNER_RESPONSE", "created_at": "2026-10-17T12:00:05Z",
+                "input_tokens": 1000, "cache_read_tokens": 2000, "output_tokens": 150,
+            },
             {"step_index": 2, "type": "USER_INPUT", "created_at": "2026-10-17T12:01:00Z", "content": "turn 2"},
-            {"step_index": 3, "type": "PLANNER_RESPONSE", "created_at": "2026-10-17T12:01:05Z", "input_tokens": 500, "cache_read_tokens": 3000, "output_tokens": 200},
+            {
+                "step_index": 3, "type": "PLANNER_RESPONSE", "created_at": "2026-10-17T12:01:05Z",
+                "input_tokens": 500, "cache_read_tokens": 3000, "output_tokens": 200,
+            },
             {"step_index": 4, "type": "GENERIC", "content": "tool output"},
-            {"step_index": 5, "type": "PLANNER_RESPONSE", "created_at": "2026-10-17T12:01:10Z", "input_tokens": 600, "cache_read_tokens": 3500, "output_tokens": 100},
+            {
+                "step_index": 5, "type": "PLANNER_RESPONSE", "created_at": "2026-10-17T12:01:10Z",
+                "input_tokens": 600, "cache_read_tokens": 3500, "output_tokens": 100,
+            },
         ]
         _write_transcript(self.transcript_path, lines)
 
@@ -114,26 +133,66 @@ class AgyAdapterTests(unittest.TestCase):
         self.assertIn("⚡", msg)
         self.assertIn("tokens", msg)
 
-    def test_adapter_satisfies_base_protocol(self) -> None:
-        """AgyAdapter must implement all methods declared in BaseAdapter."""
-        adapter = AgyAdapter(data_folder=self.dir_path)
-        payload = {"transcriptPath": str(self.transcript_path), "conversationId": "s1"}
-        self.assertIsInstance(adapter.session_id(payload), str)
-        self.assertIsInstance(adapter.turn_key(payload), str)
-        self.assertIsNotNone(adapter.build_message(payload))
+    def test_unanswered_prompts_fall_back_to_last_answered_turn(self) -> None:
+        transcript = self.dir_path / "pending.jsonl"
+        _write_transcript(transcript, [
+            {"step_index": 0, "type": "USER_INPUT", "content": "turn 1"},
+            {"step_index": 1, "type": "PLANNER_RESPONSE", "input_tokens": 10, "output_tokens": 5},
+            {"step_index": 2, "type": "USER_INPUT", "content": "queued"},
+            {"step_index": 3, "type": "USER_INPUT", "content": "queued again"},
+        ])
+        calls, prompt, number = parse_agy_transcript(transcript)
+        self.assertEqual([c.message_id for c in calls], ["step_1"])
+        self.assertEqual(prompt["content"], "turn 1")
+        self.assertEqual(number, 1)
 
-    def test_session_id_falls_back_to_dir_name(self) -> None:
-        """session_id derives the conversation id from the transcript path when not in payload."""
-        adapter = AgyAdapter(data_folder=self.dir_path)
-        # payload has no explicit conversationId — should use parent.parent.name of transcript path
-        payload = {"transcriptPath": str(self.transcript_path)}
-        sid = adapter.session_id(payload)
-        self.assertEqual(sid, self.transcript_path.parent.parent.name)
+    def test_no_answered_turn(self) -> None:
+        transcript = self.dir_path / "none.jsonl"
+        _write_transcript(transcript, [{"step_index": 0, "type": "USER_INPUT", "content": "hi"}])
+        self.assertEqual(parse_agy_transcript(transcript), ([], None, 0))
 
-    def test_turn_key_falls_back_to_turn_string(self) -> None:
-        adapter = AgyAdapter(data_folder=self.dir_path)
-        self.assertEqual(adapter.turn_key({}), "turn")
-        self.assertEqual(adapter.turn_key({"step_index": 3}), "3")
+    def test_conversation_id_comes_from_the_brain_folder(self) -> None:
+        path = Path("/h/.gemini/antigravity-cli/brain/conv-42/.system_generated/logs/transcript.jsonl")
+        self.assertEqual(conversation_id(path, {"conversationId": "other"}), "conv-42")
+        self.assertEqual(conversation_id(self.transcript_path, {"conversationId": "s1"}), "s1")
+
+    def test_turn_key_keeps_step_zero(self) -> None:
+        self.assertEqual(turn_key({"step_index": 0, "created_at": "x"}), "0")
+        self.assertEqual(turn_key({"created_at": "x"}), "x")
+        self.assertEqual(turn_key(None), "turn")
+
+    def test_two_conversations_do_not_overwrite_each_other(self) -> None:
+        data = self.dir_path / "data"
+        adapter = AgyAdapter(data_folder=data)
+        for conv in ("conv-a", "conv-b"):
+            logs = self.dir_path / "brain" / conv / ".system_generated" / "logs"
+            logs.mkdir(parents=True)
+            (logs / "transcript.jsonl").write_text(self.transcript_path.read_text())
+            adapter.build_message({"transcriptPath": str(logs / "transcript.jsonl")})
+        self.assertEqual(sorted(latest(data)), [("conv-a", "2"), ("conv-b", "2")])
+
+    def test_hook_mode_records_and_lets_the_agent_stop(self) -> None:
+        data = self.dir_path / "data"
+        payload = json.dumps({"transcriptPath": str(self.transcript_path), "conversationId": "s1",
+                              "modelName": "Gemini 3.8 Flash (High)"})
+        stdin, stdout = io.StringIO(payload), io.StringIO()
+        stdin.isatty = lambda: False  # type: ignore[method-assign]
+        with patch("sys.stdin", stdin), patch("sys.stdout", stdout), \
+             patch.dict(os.environ, {"GREEN_AI_DATA": str(data)}):
+            self.assertEqual(main([]), 0)
+        self.assertEqual(json.loads(stdout.getvalue()), {"decision": "allow"})
+        self.assertEqual(list(latest(data)), [("s1", "2")])
+
+    def test_install_hook_keeps_other_hooks_and_uses_an_absolute_path(self) -> None:
+        hooks = self.dir_path / "config" / "hooks.json"
+        hooks.parent.mkdir()
+        hooks.write_text(json.dumps({"other": {"Stop": []}}))
+        install_hook(hooks)
+        data = json.loads(hooks.read_text())
+        self.assertIn("other", data)
+        command = data["friendly-reminder"]["Stop"][0]["command"]
+        self.assertTrue(Path(command).is_absolute())
+        self.assertTrue(Path(command).is_file())
 
     def test_main_cli_text_flag(self) -> None:
         stdout = io.StringIO()
@@ -151,7 +210,7 @@ class AgyAdapterTests(unittest.TestCase):
              patch("friendly_reminder.adapters.agy.find_latest_agy_transcript", return_value=None):
             ret = main(["--text"])
         self.assertEqual(ret, 0)
-        self.assertIn("No turn activity", stdout.getvalue())
+        self.assertIn("no measured turn", stdout.getvalue())
 
 
 class GeminiNormalizationTests(unittest.TestCase):
@@ -173,36 +232,40 @@ class GeminiNormalizationTests(unittest.TestCase):
         self.assertEqual(normalize_model("gemini-3.8-flash"), "gemini-3.8-flash")
 
 
-class FindLatestAgyTranscriptTests(unittest.TestCase):
-    """find_latest_agy_transcript must return the most recently modified transcript."""
+class GeminiPricingTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.prices = PriceBook.load(BUNDLED_DATA / "pricing.json")
 
+    def _cost(self, model: str, **usage: int) -> float:
+        return self.prices.cost(ApiCall("m", model, Usage(**usage)))
+
+    def test_display_name_is_priced(self) -> None:
+        self.assertAlmostEqual(self._cost("Gemini 3.8 Flash (Low)", input=1_000_000), 0.75)
+
+    def test_preview_ids_use_the_base_price(self) -> None:
+        self.assertAlmostEqual(self._cost("gemini-3.1-pro-preview", output=1_000_000), 12.0)
+
+    def test_long_context_tier(self) -> None:
+        self.assertAlmostEqual(self._cost("gemini-2.5-pro", input=300_000), 0.75)
+
+
+class FindLatestAgyTranscriptTests(unittest.TestCase):
     def test_returns_most_recent_when_multiple_exist(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
-            # Simulate two agy installations with different conversation transcripts.
-            older = home / ".gemini" / "antigravity-cli" / "brain" / "conv-1" / ".system_generated" / "logs"
-            newer = home / ".gemini" / "antigravity-cli" / "brain" / "conv-2" / ".system_generated" / "logs"
-            older.mkdir(parents=True)
-            newer.mkdir(parents=True)
-            (older / "transcript.jsonl").write_text("{}")
-            import time; time.sleep(0.01)  # ensure different mtime
-            (newer / "transcript.jsonl").write_text("{}")
-
-            with patch("friendly_reminder.adapters.agy.Path") as mock_path:
-                # Redirect Path.home() to our temp directory.
-                mock_path.home.return_value = home
-                mock_path.side_effect = lambda *a, **kw: Path(*a, **kw)
-                result = find_latest_agy_transcript()
-
-            # Both transcripts under home match; the newer one should win.
-            # (Direct test without mocking — check it returns a valid path.)
-        # Integration-style: just verify it returns None when nothing exists.
-        with patch("pathlib.Path.glob", return_value=iter([])):
-            result = find_latest_agy_transcript()
-            self.assertIsNone(result)
+            paths = []
+            for install, conv in (("antigravity-cli", "conv-1"), ("antigravity-ide", "conv-2")):
+                logs = home / ".gemini" / install / "brain" / conv / ".system_generated" / "logs"
+                logs.mkdir(parents=True)
+                (logs / "transcript.jsonl").write_text("{}")
+                paths.append(logs / "transcript.jsonl")
+            os.utime(paths[0], (1000, 1000))
+            os.utime(paths[1], (2000, 2000))
+            with patch("pathlib.Path.home", return_value=home):
+                self.assertEqual(find_latest_agy_transcript(), paths[1])
 
     def test_returns_none_when_no_transcript_found(self) -> None:
-        with patch("pathlib.Path.glob", return_value=iter([])):
+        with tempfile.TemporaryDirectory() as tmp, patch("pathlib.Path.home", return_value=Path(tmp)):
             self.assertIsNone(find_latest_agy_transcript())
 
 

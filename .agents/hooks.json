@@ -1,6 +1,6 @@
 {
   "friendly-reminder": {
-    "PostInvocation": [
+    "Stop": [
       {
         "type": "command",
         "command": "./plugins/friendly-reminder/scripts/friendly-reminder-agy",

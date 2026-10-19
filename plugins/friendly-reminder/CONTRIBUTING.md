@@ -9,7 +9,7 @@ Thanks for your interest! Friendly Reminder has zero runtime dependencies — an
 python3 -m unittest discover -s tests
 ```
 
-All 52+ tests run in a few seconds with nothing but the standard library.
+All tests run in a few seconds with nothing but the standard library.
 
 ## Adding or updating prices
 
@@ -40,12 +40,11 @@ Edit [`data/pricing.json`](data/pricing.json). The schema is:
 
 ## Adding a new platform adapter
 
-1. Create `src/friendly_reminder/adapters/<platform>.py`.
-2. Implement `build_message(payload)`, `session_id(payload)`, and `turn_key(payload)` — see [`adapters/base.py`](src/friendly_reminder/adapters/base.py) for the full contract.
-3. Add tests in `tests/test_<platform>_adapter.py`.
-4. Export from [`adapters/__init__.py`](src/friendly_reminder/adapters/__init__.py).
+1. Create `src/friendly_reminder/adapters/<platform>.py` that turns the tool's transcript into `ApiCall`s, then reuses `meter.aggregate`, `history.record` and `render.render`.
+2. Record each turn under a key that the tool's hook and a manual run both derive the same way, so a turn is never counted twice.
+3. Add a launcher in `scripts/` and tests in `tests/test_<platform>_adapter.py`.
 
-The agy adapter ([`adapters/agy.py`](src/friendly_reminder/adapters/agy.py)) is the reference implementation for non-Claude-Code environments.
+The agy adapter ([`adapters/agy.py`](src/friendly_reminder/adapters/agy.py)) is the reference implementation.
 
 ## Updating the environmental footprint factors
 

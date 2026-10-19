@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -136,7 +137,8 @@ class RenderTests(unittest.TestCase):
         self.turn = aggregate(calls, PRICES, FOOTPRINT)
         self.month = Totals(usage=Usage(output=2_000_000), cost_usd=12.3, footprint=Footprint(900.0, 2300.0), turns=40)
 
-    def text(self, settings: Settings = Settings(format="table"), lang: str = "pt", **kw) -> str:
+    def text(self, settings: Optional[Settings] = None, lang: str = "pt", **kw) -> str:
+        settings = settings or Settings(format="table")
         return render(self.turn, 2, settings, lang, kw.pop("billing", Billing("api")), **kw)
 
     def test_turn_totals(self) -> None:

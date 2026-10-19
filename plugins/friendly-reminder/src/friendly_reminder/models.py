@@ -29,7 +29,7 @@ class Usage:
         """Tokens the model read on the way in (what long-context tiers key on)."""
         return self.input + self.cache_write + self.cache_read
 
-    def __add__(self, other: "Usage") -> "Usage":
+    def __add__(self, other: Usage) -> Usage:
         return Usage(
             input=self.input + other.input,
             cache_write_5m=self.cache_write_5m + other.cache_write_5m,
@@ -48,7 +48,7 @@ class Usage:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, int]) -> "Usage":
+    def from_dict(cls, data: Dict[str, int]) -> Usage:
         return cls(**{k: int(data.get(k, 0) or 0) for k in cls().to_dict()})
 
 
@@ -70,7 +70,7 @@ class Footprint:
     wh: float = 0.0
     water_ml: float = 0.0
 
-    def __add__(self, other: "Footprint") -> "Footprint":
+    def __add__(self, other: Footprint) -> Footprint:
         return Footprint(self.wh + other.wh, self.water_ml + other.water_ml)
 
 

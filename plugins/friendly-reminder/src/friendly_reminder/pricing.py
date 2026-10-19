@@ -60,7 +60,7 @@ class PriceBook:
         self._models: Dict[str, Dict[str, Any]] = dict(data.get("models") or {})
 
     @classmethod
-    def load(cls, bundled: Path, override: Optional[Path] = None) -> "PriceBook":
+    def load(cls, bundled: Path, override: Optional[Path] = None) -> PriceBook:
         data = json.loads(bundled.read_text(encoding="utf-8"))
         if override and override.is_file():
             extra = json.loads(override.read_text(encoding="utf-8"))

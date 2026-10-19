@@ -1,17 +1,17 @@
 # Friendly Reminder 💧
 
-Every answer from an AI model costs water: the water that cools the data center, plus the water used to generate its electricity. Friendly Reminder is a Claude Code plugin that makes that cost visible. After each response, it shows two lines in a band above the prompt:
+Every answer from an AI model costs water: the water that cools the data center, plus the water used to generate its electricity. Friendly Reminder makes that cost visible in Claude Code and in Google Antigravity (`agy`). In Claude Code, after each response, it shows two lines in a band above the prompt:
 
 ```
 💧 56 mL of water in this response (29% of a small glass) · today 1.4 L · month 19 L (≈ 1.9 buckets)
 ⚡ 15 Wh · 1.3M tokens · $0.82
 ```
 
-- **Water** leads the message. It is an estimate built from published research, pictured as something everyday (see [Comparisons](#comparisons)), and totaled for the day and the month across all your Claude Code sessions.
+- **Water** leads the message. It is an estimate built from published research, pictured as something everyday (see [Comparisons](#comparisons)), and totaled for the day and the month across all your Claude Code sessions, plus the agy turns its hook recorded.
 - **Energy** is estimated the same way.
 - **Tokens** are exact: the API's own counts for every request in the turn, subagents included.
-- **API cost** is exact at Anthropic's list prices, with cache writes and reads priced separately. On a subscription, this is the API-equivalent value of the work, not what you pay.
-- **Quota**: on Pro, Max and Team, your 5-hour and weekly usage. The short format shows it once either reaches 50%.
+- **API cost** is exact at the provider's list prices (Anthropic, or the Gemini API for agy), with cache writes and reads priced separately. On a subscription, this is the API-equivalent value of the work, not what you pay.
+- **Quota**: on Claude Pro, Max and Team, your 5-hour and weekly usage. The short format shows it once either reaches 50%. agy has no quota line.
 
 It speaks English by default, with Portuguese one click away. It detects your billing mode and plan by itself. It needs only `python3` 3.8+ and has no dependencies.
 
@@ -29,14 +29,21 @@ To update later, run `/plugin marketplace update green-ai`, then `/reload-plugin
 
 ### Google Antigravity (`agy`)
 
-Friendly Reminder integrates directly with Antigravity via lifecycle hooks or workspace skills:
+Register the hook once, from the plugin folder:
 
-1. **Workspace Hook**: Copy or keep `.agents/hooks.json` in your repository root.
-2. **Global Hook**: To enable it for all your `agy` sessions, copy `.agents/hooks.json` to `~/.gemini/config/hooks.json`.
-3. **Manual CLI**: Check any active or past session directly:
-   ```bash
-   ./scripts/friendly-reminder-agy --text
-   ```
+```bash
+./scripts/friendly-reminder-agy --install-hook
+```
+
+This adds a `Stop` hook with the script's absolute path to `~/.gemini/config/hooks.json`, keeping any hooks already there. Inside this repository, `.agents/hooks.json` does the same for the workspace. After each turn, the hook records what the turn used in the history Claude Code uses too, without adding anything to the conversation. Antigravity hooks have no way to show text to you, so to see the reminder, run:
+
+```bash
+./scripts/friendly-reminder-agy --text
+```
+
+It shows the last turn the model answered in your most recent agy conversation, from any workspace. Pass `--transcript <path>` for a specific one. The model comes from the hook payload, or from the `model` in `~/.gemini/antigravity-cli/settings.json` on a manual run. Cost is the Gemini API list price, which is not what a Google account subscription charges.
+
+Inside this repository, the workspace skill `.agents/skills/friendly-reminder` lets the agent run it for you: ask agy about the water or energy of the conversation.
 
 ## The band
 
@@ -103,6 +110,8 @@ The comparisons live in [`comparisons.py`](src/friendly_reminder/comparisons.py)
 
 Use **Options** on the band, or open `/config` and edit the **Friendly Reminder** rows. You can also run `claude plugin configure friendly-reminder@green-ai` from your shell. Currency and exchange rate are only in `/config`.
 
+In agy, set the same options as environment variables named `CLAUDE_PLUGIN_OPTION_` plus the option in upper case, e.g. `CLAUDE_PLUGIN_OPTION_FORMAT=table ./scripts/friendly-reminder-agy --text` or `CLAUDE_PLUGIN_OPTION_LANGUAGE=pt`.
+
 | Option | Values | Default |
 |---|---|---|
 | `format` | `short`, `table`, `detailed`, `off` (see [Formats](#formats)) | `short` |
@@ -114,9 +123,9 @@ Use **Options** on the band, or open `/config` and edit the **Friendly Reminder*
 
 ### Data and overrides
 
-Everything the plugin keeps is in its data directory, `~/.claude/plugins/data/friendly-reminder-green-ai/`:
+Everything the plugin keeps is in its data directory, `~/.claude/plugins/data/friendly-reminder-green-ai/`. Claude Code and agy share it, even when only agy is installed, so there is one history. Set `GREEN_AI_DATA` to use another folder:
 
-- `history/YYYY-MM.jsonl` holds one line per response: tokens, cost, energy, water and models. The day, month and month-by-month totals come from here. Delete a file to reset that month (sessions still on disk are counted again after the next response).
+- `history/YYYY-MM.jsonl` holds one line per response, from either tool: tokens, cost, energy, water and models. The day, month and month-by-month totals come from here. Delete a file to reset that month (sessions still on disk are counted again after the next response).
 - `sync-state.json` remembers which transcripts were already read. Delete it to read them all again.
 - `error.log` collects any error, so a failure never interrupts your session.
 - `pricing.json` (optional) adds or replaces model prices, using the same shape as [`data/pricing.json`](data/pricing.json).
@@ -124,7 +133,7 @@ Everything the plugin keeps is in its data directory, `~/.claude/plugins/data/fr
 
 ## How the water is estimated
 
-Anthropic doesn't publish per-token energy or water figures, so Friendly Reminder estimates them:
+Anthropic and Google don't publish per-token energy or water figures, so Friendly Reminder estimates them, with the same factors for every model:
 
 ```
 energy (Wh) = PUE × Σ tokens_by_class × Wh_per_token(class)
@@ -150,23 +159,28 @@ Sources and assumptions are listed in [`data/footprint.json`](data/footprint.jso
 
 ## How it works
 
-Friendly Reminder is built around a shared, agent-agnostic Python core (`meter`, `footprint`, `pricing`, `comparisons`, `history`) with dedicated adapters for different AI environments:
+Both tools share one Python core (`meter`, `footprint`, `pricing`, `comparisons`, `history`, `render`). Claude Code reaches it through `hook.py`, agy through `adapters/agy.py`.
 
 ### In Claude Code
 
-1. The hooks module (`hooks/register.tsx`) intercepts the `Stop` event and runs `scripts/friendly-reminder`.
-2. The script reads the session transcript and subagent transcripts beside it.
+Friendly Reminder is a mod: a plugin whose hooks module (`hooks/register.tsx`) draws in Claude Code's interface. When Claude finishes a response:
+
+1. The module runs `scripts/friendly-reminder`, passing it the turn's `Stop` payload and your settings.
+2. The script reads the session transcript and the subagent transcripts beside it.
 3. It sums the `usage` of every API call since the turn's opening prompt, prices it, and estimates energy and water.
 4. It records the turn in the history, keyed by session and turn, so measuring the same turn twice never counts it twice.
-5. It reads other transcripts in `~/.claude/projects` to keep day and month totals synchronized across sessions.
-6. The module draws the result in an interactive band above the prompt.
+5. It reads the other transcripts in `~/.claude/projects` that changed since its last run and records any turn the history lacks: other sessions and windows, sessions started before the plugin was installed, turns interrupted with Esc. Only transcripts touched since the start of last month are read, and a run stops after 6 seconds and continues after the next response, so the first one after installing can take a few responses to catch up.
+6. The day, month and month-by-month totals come from the history.
+7. The module draws the result above the prompt.
+
+A pick in **Options** writes the `/config` row, then runs step 1 again for the last response with the new setting.
 
 ### In Google Antigravity (`agy`)
 
-1. The `PostInvocation` lifecycle hook or workspace skill runs `scripts/friendly-reminder-agy` (`adapters/agy.py`).
-2. It parses Antigravity's JSONL transcripts from `~/.gemini/*/brain/.../transcript.jsonl`, reading `input_tokens`, `cache_read_tokens`, and `output_tokens` for the turn.
-3. It prices Gemini and OpenAI models and estimates cooling water and electrical generation impact.
-4. It records the turn in the shared history and injects the reminder into the workflow or prints it cleanly to the terminal.
+1. The `Stop` hook, or a manual run, starts `scripts/friendly-reminder-agy` (`adapters/agy.py`).
+2. It reads the conversation's `~/.gemini/*/brain/<conversation>/.system_generated/logs/transcript.jsonl` and sums `input_tokens`, `cache_read_tokens` and `output_tokens` of the `PLANNER_RESPONSE` steps since the last prompt the model answered.
+3. It prices them with the Gemini rows of `data/pricing.json` and estimates energy and water with the same factors as above. Those factors are not specific to Gemini, so treat the figures as rougher than for Claude.
+4. It records the turn in the shared history under the conversation folder's id and the prompt's step, so the hook and a manual run never count it twice. The hook answers `{"decision": "allow"}`, so the agent stops as usual; a manual run prints the reminder.
 
 The plugin never reads credentials. Billing detection looks only at provider switches, at whether an API key is present, and at the plan type in `~/.claude.json`.
 
@@ -175,6 +189,9 @@ The plugin never reads credentials. Billing detection looks only at provider swi
 - **No band after a response.** Check that the plugin is enabled (`/plugin`) and that `python3` runs from your shell. If you pressed **Hide**, the band stays hidden until the next session. If you updated the plugin with `/reload-plugins` and the band stopped, start a new session (`claude --continue` keeps the conversation).
 - **Numbers look off.** Look at `error.log` in the data directory. Prices are a snapshot, so a new model may be missing from `data/pricing.json` (the cost then shows a `*`).
 - **Wrong language.** The default is English. Pick `pt` or `auto` in **Options**.
+- **Plugin "failed to load: cache-miss"** in `claude plugin list`. A marketplace added from a local folder remembers that folder's path, so moving or renaming the clone breaks it. Run `claude plugin marketplace remove green-ai`, then `claude plugin marketplace add <new path>` and `claude plugin install friendly-reminder@green-ai`.
+- **agy: "no measured turn found".** The most recent conversation has no answered prompt yet, or its transcript is somewhere else. Pass `--transcript <path>`.
+- **agy: the totals don't grow.** Check that `~/.gemini/config/hooks.json` has the `friendly-reminder` entry (run `--install-hook` again after moving the clone, since it stores an absolute path), and that the workspace is trusted when you rely on `.agents/hooks.json`.
 
 ## Limits
 
@@ -187,11 +204,15 @@ The plugin never reads credentials. Billing detection looks only at provider swi
 - Mods are an early-access Claude Code feature, and their API may change between releases.
 - Where an organization manages Claude Code, it runs `Stop` hooks only for plugins listed in managed settings, so the band stays empty.
 - The Claude mobile app shows the band without **Options**, since it can't draw pickers yet.
+- agy hooks can't show text, so in agy the reminder appears only when you run `--text` or ask through the skill.
+- agy transcripts don't record the model. A turn is priced with the model of the hook payload or of the CLI settings, so after a switch mid-conversation an older turn measured by hand is priced with the new model.
+- In agy only turns that ran with the hook installed, or that you measured by hand, enter the totals. Older agy conversations are not read back.
 
 ## Development
 
 ```bash
 python3 -m unittest discover -s tests     # Python: no dependencies
+./scripts/friendly-reminder-agy --text     # the agy adapter, on your latest agy conversation
 claude plugin test .                       # the mod: tests/*.test.tsx
 claude plugin validate .
 claude --plugin-dir .                      # try it without installing

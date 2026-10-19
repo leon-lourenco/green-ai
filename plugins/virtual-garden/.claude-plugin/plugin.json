@@ -1,0 +1,59 @@
+{
+  "name": "virtual-garden",
+  "displayName": "Virtual Garden",
+  "version": "1.0.0",
+  "description": "A mindful ASCII garden above the prompt that grows with green AI habits: prompt caching, lean context and /compact.",
+  "author": {
+    "name": "Leon Lourenço Gomes"
+  },
+  "homepage": "https://github.com/leon-lourenco/green-ai/tree/main/plugins/virtual-garden",
+  "repository": "https://github.com/leon-lourenco/green-ai",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "keywords": [
+    "garden",
+    "gamification",
+    "ascii",
+    "sustainability",
+    "eco",
+    "cache",
+    "awareness"
+  ],
+  "userConfig": {
+    "format": {
+      "type": "string",
+      "title": "Display format",
+      "description": "short: one line above the prompt. full: the whole garden with stats and a tip. off: keep growing without showing it.",
+      "options": [
+        "short",
+        "full",
+        "off"
+      ],
+      "default": "short"
+    },
+    "species": {
+      "type": "string",
+      "title": "Plant",
+      "description": "The plant to tend. current keeps the one you are growing; a locked species shows how to unlock it.",
+      "options": [
+        "current",
+        "bonsai",
+        "cactus",
+        "sakura",
+        "ipe"
+      ],
+      "default": "current"
+    },
+    "language": {
+      "type": "string",
+      "title": "Language",
+      "description": "Defaults to automatic detection.",
+      "options": [
+        "auto",
+        "en",
+        "pt"
+      ],
+      "default": "auto"
+    }
+  }
+}

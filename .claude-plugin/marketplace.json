@@ -22,14 +22,13 @@
     {
       "name": "virtual-garden",
       "source": "./plugins/virtual-garden",
-      "description": "A mindful virtual ASCII garden that grows and blossoms with efficient AI development habits.",
+      "description": "A mindful ASCII garden above the prompt that grows with green AI habits: prompt caching, lean context and /compact.",
       "category": "sustainability",
       "tags": [
         "garden",
         "gamification",
         "ascii",
         "sustainability",
-        "eco",
         "cache"
       ]
     }

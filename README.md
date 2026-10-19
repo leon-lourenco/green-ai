@@ -13,10 +13,11 @@ Tools and plugins that make the environmental cost of AI visible. Currently supp
 
 ### Google Antigravity (agy)
 
-Workspace hook (`.agents/hooks.json`), skill (`.agents/skills/friendly-reminder`), or run directly:
+Workspace hooks (`.agents/hooks.json`), skills (`.agents/skills/`), or run directly:
 
 ```bash
 ./plugins/friendly-reminder/scripts/friendly-reminder-agy --text
+./plugins/virtual-garden/scripts/virtual-garden-agy --full
 ```
 
 ## Plugins
@@ -24,7 +25,7 @@ Workspace hook (`.agents/hooks.json`), skill (`.agents/skills/friendly-reminder`
 | Plugin | What it does |
 |---|---|
 | [friendly-reminder](plugins/friendly-reminder) | After every response, shows the water it took, pictured as something everyday, plus energy, tokens, API cost and quota, with daily and monthly totals. Works in Claude Code and Google Antigravity (`agy`). |
-| [virtual-garden](plugins/virtual-garden) | A mindful virtual ASCII garden that grows, levels up, and blossoms as you develop efficiently with AI (prompt caching, context compaction, surgical turns). Works in Claude Code and Google Antigravity (`agy`). |
+| [virtual-garden](plugins/virtual-garden) | A mindful ASCII garden above the prompt that grows with green AI habits: sun for prompt caching, fresh soil for a lean context and `/compact`, four species to unlock. Works in Claude Code and Google Antigravity (`agy`). |
 
 ## Layout
 
@@ -33,7 +34,7 @@ Workspace hook (`.agents/hooks.json`), skill (`.agents/skills/friendly-reminder`
 .agents/                          Antigravity workspace hooks, skills and rules
 plugins/<name>/                   one plugin per folder
   .claude-plugin/plugin.json      Claude Code manifest
-  src/friendly_reminder/          shared Python engine
+  src/<package>/                  shared Python engine
     adapters/                     agent adapters (agy, claude, etc.)
   skills/ hooks/ scripts/ ...     agent components
 ```

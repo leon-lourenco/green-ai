@@ -1,0 +1,15 @@
+# Development tooling only. The plugin runs from source with the standard library.
+[project]
+name = "virtual-garden"
+version = "1.0.0"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+
+[tool.ruff]
+line-length = 120
+target-version = "py38"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "BLE"]
+ignore = ["UP006", "UP007", "UP035", "UP045"]  # keep typing.List/Optional for 3.8

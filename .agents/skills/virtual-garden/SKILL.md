@@ -1,27 +1,29 @@
 ---
 name: virtual-garden
 description: >-
-  Displays the ASCII virtual garden, botanical collection, plant growth level, vitality, and gardener tips.
-  Use this skill when the user asks about their garden, plant, bonsai, botanical collection, or asks for green AI gamification stats.
+  Shows the Virtual Garden: the plant's growth stage, sunlight (prompt caching), soil (context size),
+  collection, badges and a gardener tip, or switches the plant being tended. Use this skill when the user
+  asks about their garden, plant, bonsai, collection or badges, or asks for green AI gamification stats.
 ---
 
 # Virtual Garden 🌱
 
-Virtual Garden nurtures a digital plant based on your AI efficiency habits.
+Run these from the repository root. To show the full garden (it also applies the latest turn, once):
 
-## Commands
-
-To inspect the full garden ASCII art and statistics:
 ```bash
-./plugins/virtual-garden/scripts/virtual-garden-agy --ascii
+./plugins/virtual-garden/scripts/virtual-garden-agy --full
 ```
 
-To view in Portuguese:
-```bash
-VIRTUAL_GARDEN_LANGUAGE=pt ./plugins/virtual-garden/scripts/virtual-garden-agy --ascii
-```
+Use `--text` for the one-line summary. Show the output to the user as is, in a code block.
 
-To switch between unlocked species (`bonsai`, `sakura`, `cactus`):
+To tend another unlocked species (`bonsai`, `cactus`, `sakura`, `ipe`). Each one keeps its own growth:
+
 ```bash
 ./plugins/virtual-garden/scripts/virtual-garden-agy --switch sakura
+```
+
+## Portuguese Language
+
+```bash
+CLAUDE_PLUGIN_OPTION_LANGUAGE=pt ./plugins/virtual-garden/scripts/virtual-garden-agy --full
 ```

@@ -1,0 +1,4 @@
+{
+  "description": "After each response, display your virtual garden's growth and vitality in a band above the prompt.",
+  "modules": ["./register.tsx"]
+}

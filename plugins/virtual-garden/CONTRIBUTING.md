@@ -2,6 +2,8 @@
 
 Virtual Garden has zero runtime dependencies, and any contribution must keep it that way.
 
+Start with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): it maps the components, module dependencies, the flow of a turn and the data model.
+
 ## Running the tests
 
 ```bash
